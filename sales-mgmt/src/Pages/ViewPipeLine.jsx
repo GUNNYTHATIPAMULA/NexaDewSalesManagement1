@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Header from "../components/Header/Header"
 import { db } from "../firebase/firebase"
-import { collection, getDocs, query, orderBy, doc, updateDoc, where, getDoc } from "firebase/firestore"
+import { collection, getDocs, doc, updateDoc, getDoc } from "firebase/firestore"
 import { useAuthState } from "react-firebase-hooks/auth"
 import { auth } from "../firebase/firebase"
+import Header from "../components/Header/Header"
 
 const ViewPipeLine = () => {
   const [user] = useAuthState(auth)
@@ -17,91 +17,88 @@ const ViewPipeLine = () => {
   const [selectedLeadId, setSelectedLeadId] = useState(null)
   const [followUpDate, setFollowUpDate] = useState("")
   const [userCompany, setUserCompany] = useState("")
+  const [userRole, setUserRole] = useState("")
   const [error, setError] = useState("")
 
-  /// Fetch user's company name and leads
-useEffect(() => {
-  const fetchUserCompanyAndLeads = async () => {
-    if (!user) {
-      setError("User not authenticated. Please log in.")
-      setLoading(false)
-      return
-    }
-
-    try {
-      // Try fetching from marketingManager collection
-      let userDoc = await getDoc(doc(db, "marketingManager", user.uid))
-      let companyName = ""
-      if (userDoc.exists()) {
-        companyName = userDoc.data().companyName || ""
-        setUserCompany(companyName)
-      } else {
-        // If not found in marketingManager, try salesManager collection
-        userDoc = await getDoc(doc(db, "salesManager", user.uid))
-        if (userDoc.exists()) {
-          companyName = userDoc.data().companyName || ""
-          setUserCompany(companyName)
-        } else {
-          // If not found in salesManager, try companyOwner collection
-          userDoc = await getDoc(doc(db, "companyOwner", user.uid))
-          if (userDoc.exists()) {
-            companyName = userDoc.data().companyName || ""
-            setUserCompany(companyName)
-          } else {
-            setError("User data not found. Please contact support.")
-            setLoading(false)
-            return
-          }
-        }
-      }
-
-      if (!companyName) {
-        setError("Unable to determine your company. Please contact support.")
+  useEffect(() => {
+    const fetchUserCompanyAndLeads = async () => {
+      if (!user) {
+        setError("User not authenticated. Please log in.")
         setLoading(false)
         return
       }
 
-      // Fetch leads for the user's company
-      await fetchLeads(companyName)
-    } catch (err) {
-      console.error("Error fetching user company:", err.message)
-      if (err.code === "permission-denied") {
-        setError("Permission denied. Please ensure you have the necessary permissions to access your user data.")
-      } else {
+      try {
+        let userDoc,
+          companyName = "",
+          role = ""
+
+        // Try fetching from different user collections
+        const collections = [
+          { name: "marketingManager", role: "marketingManager" },
+          { name: "salesManager", role: "salesManager" },
+          { name: "companyOwner", role: "companyOwner" },
+        ]
+
+        for (const collection of collections) {
+          userDoc = await getDoc(doc(db, collection.name, user.uid))
+          if (userDoc.exists()) {
+            companyName = userDoc.data().companyName || ""
+            role = collection.role
+            break
+          }
+        }
+
+        if (!companyName) {
+          setError("User data not found. Please contact support.")
+          setLoading(false)
+          return
+        }
+
+        setUserCompany(companyName)
+        setUserRole(role)
+
+        // Fetch leads
+        await fetchLeads(companyName, role)
+      } catch (err) {
+        console.error("Error fetching user company:", err)
         setError("Failed to fetch user data. Please try again.")
+        setLoading(false)
       }
+    }
+
+    fetchUserCompanyAndLeads()
+  }, [user])
+
+  const fetchLeads = async (companyName, role) => {
+    try {
+      setLoading(true)
+
+      // Fetch all leads (security rules will filter automatically)
+      const leadsRef = collection(db, "leads")
+      const snapshot = await getDocs(leadsRef)
+
+      const allLeads = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+
+      // Client-side filtering as backup (in case security rules are too restrictive)
+      const filteredLeads = allLeads.filter((lead) => {
+        const leadCompany = lead.submittedLead?.toLowerCase() || lead.submittedLeadLower?.toLowerCase()
+        const userCompanyLower = companyName.toLowerCase()
+
+        return leadCompany === userCompanyLower || lead.companyOwnerId === user.uid || lead.createdBy === user.uid
+      })
+
+      setLeads(filteredLeads)
+    } catch (error) {
+      console.error("Error fetching leads:", error)
+      setError("Failed to fetch leads. Please check your permissions.")
+    } finally {
       setLoading(false)
     }
   }
-  fetchUserCompanyAndLeads()
-}, [user]) // Removed userCompany from dependency array
-
-const fetchLeads = async (companyName) => {
-  try {
-  const q = query(
-  collection(db, "leads"),
-  where("submittedLead", "==", companyName),
-  orderBy("createdAt", "desc")
-)
-    const querySnapshot = await getDocs(q)
-    const leadsData = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }))
-    setLeads(leadsData)
-  } catch (error) {
-    console.error("Error fetching leads:", error)
-    if (error.code === "failed-precondition" && error.message.includes("requires an index")) {
-      setError("Database index is missing. Please contact support to resolve this issue.")
-    } else if (error.code === "permission-denied") {
-      setError("Permission denied. Please ensure you have the necessary permissions to view leads.")
-    } else {
-      setError("Failed to fetch leads. Please try again.")
-    }
-  } finally {
-    setLoading(false)
-  }
-}
 
   const handleStatusChange = async (leadId, newStatus, followUpDate = null) => {
     try {
@@ -114,7 +111,7 @@ const fetchLeads = async (companyName) => {
       setShowFollowUpModal(false)
       setSelectedLeadId(null)
       setFollowUpDate("")
-      await fetchLeads(userCompany)
+      await fetchLeads(userCompany, userRole)
     } catch (error) {
       console.error(`Error updating lead status to ${newStatus}:`, error)
       setError(`Failed to update lead status to ${newStatus}. Please try again.`)
@@ -158,12 +155,11 @@ const fetchLeads = async (companyName) => {
 
   const filteredLeads = leads.filter((lead) => {
     const matchesFilter =
-      filter === "All" ||
-      (filter === "Follow-Up" ? lead.status === "Follow-Up" : lead.status === filter)
+      filter === "All" || (filter === "Follow-Up" ? lead.status === "Follow-Up" : lead.status === filter)
     const matchesSearch =
-      lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.company.toLowerCase().includes(searchTerm.toLowerCase())
+      lead.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.company?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesFilter && matchesSearch
   })
 
@@ -179,7 +175,6 @@ const fetchLeads = async (companyName) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header />
         <div className="flex items-center justify-center h-64">
           <div className="text-xl">Loading pipeline...</div>
         </div>
@@ -189,19 +184,21 @@ const fetchLeads = async (companyName) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      <Header/>
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Sales Pipeline</h1>
           <p className="text-gray-600">Track and manage your leads through the sales process</p>
+          {userCompany && (
+            <p className="text-sm text-gray-500 mt-2">
+              Company: {userCompany} | Role: {userRole}
+            </p>
+          )}
         </div>
 
         {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
+
         {/* Pipeline Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
           {Object.entries(statusCounts).map(([status, count]) => (
@@ -248,9 +245,7 @@ const fetchLeads = async (companyName) => {
             <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-sm">
               <h2 className="text-lg font-semibold mb-4">Schedule Follow-Up</h2>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Follow-Up Date
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Follow-Up Date</label>
                 <input
                   type="date"
                   value={followUpDate}
@@ -281,44 +276,27 @@ const fetchLeads = async (companyName) => {
             </div>
           </div>
         )}
+
         {/* Leads Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="menubar">
             <ul className="flex gap-10 p-5 font-medium cursor-pointer text-xl">
-              <li
-                className={filter === "New" ? "text-blue-500" : ""}
-                onClick={() => handleTabClick("New")}
-              >
+              <li className={filter === "New" ? "text-blue-500" : ""} onClick={() => handleTabClick("New")}>
                 New Leads
               </li>
-              <li
-                className={filter === "Contacted" ? "text-blue-500" : ""}
-                onClick={() => handleTabClick("Contacted")}
-              >
+              <li className={filter === "Contacted" ? "text-blue-500" : ""} onClick={() => handleTabClick("Contacted")}>
                 Contacted Leads
               </li>
-              <li
-                className={filter === "Qualified" ? "text-blue-500" : ""}
-                onClick={() => handleTabClick("Qualified")}
-              >
+              <li className={filter === "Qualified" ? "text-blue-500" : ""} onClick={() => handleTabClick("Qualified")}>
                 Interested Leads
               </li>
-              <li
-                className={filter === "Follow-Up" ? "text-blue-500" : ""}
-                onClick={() => handleTabClick("Follow-Up")}
-              >
+              <li className={filter === "Follow-Up" ? "text-blue-500" : ""} onClick={() => handleTabClick("Follow-Up")}>
                 Follow-Up Leads
               </li>
-              <li
-                className={filter === "Won" ? "text-blue-500" : ""}
-                onClick={() => handleTabClick("Won")}
-              >
+              <li className={filter === "Won" ? "text-blue-500" : ""} onClick={() => handleTabClick("Won")}>
                 Won Leads
               </li>
-              <li
-                className={filter === "Lost" ? "text-blue-500" : ""}
-                onClick={() => handleTabClick("Lost")}
-              >
+              <li className={filter === "Lost" ? "text-blue-500" : ""} onClick={() => handleTabClick("Lost")}>
                 Lost Leads
               </li>
             </ul>
@@ -364,19 +342,19 @@ const fetchLeads = async (companyName) => {
                         <div className="flex-shrink-0 h-10 w-10">
                           <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
                             <span className="text-sm font-medium text-gray-700">
-                              {lead.name.charAt(0).toUpperCase()}
+                              {lead.name?.charAt(0).toUpperCase() || "L"}
                             </span>
                           </div>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{lead.name}</div>
-                          <div className="text-sm text-gray-500">{lead.company}</div>
+                          <div className="text-sm font-medium text-gray-900">{lead.name || "Unknown"}</div>
+                          <div className="text-sm text-gray-500">{lead.company || "Unknown Company"}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{lead.email}</div>
-                      <div className="text-sm text-gray-500">{lead.phone}</div>
+                      <div className="text-sm text-gray-900">{lead.email || "No email"}</div>
+                      <div className="text-sm text-gray-500">{lead.phone || "No phone"}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{lead.services || "Not specified"}</div>
@@ -388,18 +366,18 @@ const fetchLeads = async (companyName) => {
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(lead.status)}`}
                       >
-                        {lead.status}
+                        {lead.status || "New"}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(lead.priority)}`}
                       >
-                        {lead.priority}
+                        {lead.priority || "Medium"}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(lead.createdAt).toLocaleDateString()}
+                      {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : "Unknown"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {lead.status === "Follow-Up" && lead.followUpDate
@@ -434,7 +412,6 @@ const fetchLeads = async (companyName) => {
                           <button
                             className="bg-indigo-500 p-2 rounded-md text-white hover:bg-indigo-600"
                             onClick={() => handleFollowUpClick(lead.id)}
-
                           >
                             Follow-Up
                           </button>
