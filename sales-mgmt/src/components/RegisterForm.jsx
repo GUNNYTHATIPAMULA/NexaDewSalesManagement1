@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { auth, db } from "../firebase/firebase"
-import { setDoc, doc, query, collection, where, getDocs } from "firebase/firestore"
+import { setDoc, doc, query, collection, getDocs } from "firebase/firestore"
 import { useNavigate } from "react-router-dom"
 import { doSignInWithGoogle } from "../firebase/auth"
 import { createUserWithEmailAndPassword } from "firebase/auth"
@@ -31,10 +31,24 @@ const RegisterForm = ({ role, successRedirect, accentColor, requireCompanyVerifi
     if (!requireCompanyVerification) return true
 
     try {
-      const normalizedCompanyName = companyName.toLowerCase()
-      const companyQuery = query(collection(db, "companyOwner"), where("companyName", "==", normalizedCompanyName))
+      // Fetch all companyOwner documents
+      const companyQuery = query(collection(db, "companyOwner"))
       const querySnapshot = await getDocs(companyQuery)
-      return !querySnapshot.empty
+
+      // Normalize the input company name
+      const normalizedInput = companyName.toLowerCase().trim()
+
+      // Check if any document has a matching companyName (case-insensitive)
+      let companyExists = false
+      querySnapshot.forEach((doc) => {
+        const companyData = doc.data()
+        const storedCompanyName = companyData.companyName || ""
+        if (storedCompanyName.toLowerCase().trim() === normalizedInput) {
+          companyExists = true
+        }
+      })
+
+      return companyExists
     } catch (error) {
       console.error("Error checking company:", error.message)
       throw error
@@ -63,8 +77,8 @@ const RegisterForm = ({ role, successRedirect, accentColor, requireCompanyVerifi
         name: formData.name || user.displayName || "Unknown",
         email: formData.email || user.email,
         phone: formData.phone || "",
-        companyName: formData.companyName.toLowerCase(),
-        role: role, // Keep the full role name for consistency
+        companyName: formData.companyName.toLowerCase().trim(), // Ensure consistency
+        role: role,
         uid: user.uid,
         createdAt: new Date().toISOString(),
       }
@@ -146,7 +160,6 @@ const RegisterForm = ({ role, successRedirect, accentColor, requireCompanyVerifi
     setError("")
     setGoogleLoading(true)
     try {
-      // Validate company name is provided
       if (!formData.companyName.trim()) {
         setError("Company name is required.")
         return
@@ -189,7 +202,6 @@ const RegisterForm = ({ role, successRedirect, accentColor, requireCompanyVerifi
 
         {error && <p className="text-red-500 text-sm mb-4 p-3 bg-red-50 border border-red-200 rounded">{error}</p>}
 
-        {/* Google Sign Up Button */}
         <div className="mb-6">
           <button
             type="button"
@@ -197,7 +209,6 @@ const RegisterForm = ({ role, successRedirect, accentColor, requireCompanyVerifi
             disabled={googleLoading || loading}
             className="w-full bg-white border border-gray-300 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
           >
-            {/* Google SVG Icon */}
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
@@ -230,7 +241,6 @@ const RegisterForm = ({ role, successRedirect, accentColor, requireCompanyVerifi
         </div>
 
         <form onSubmit={handleEmailPasswordSignup} className="flex flex-col gap-4">
-          {/* Company Name Field - Now shown for ALL roles */}
           <div>
             <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
               Company Name *
@@ -249,7 +259,6 @@ const RegisterForm = ({ role, successRedirect, accentColor, requireCompanyVerifi
             )}
           </div>
 
-          {/* Other form fields */}
           {["name", "phone", "email", "password"].map((field) => (
             <div key={field}>
               <label htmlFor={field} className="block text-sm font-medium text-gray-700 mb-1">
