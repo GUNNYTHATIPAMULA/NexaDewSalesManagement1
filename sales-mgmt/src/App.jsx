@@ -1,99 +1,89 @@
-"use client"
 
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
-import Home from "./Pages/Home/Home"
-import MarketingManagerRegister from "./Pages/MarketingManager/MarketingManagerRegister"
-import SalesManagerRegister from "./Pages/SalesManager/SalesManagerRegister"
-import CompanyOwnerRegister from "./Pages/CompanyOwner/CompanyOwnerRegister"
-import RoleSelection from "./Pages/RoleSelection"
-import Login from "./Pages/Login/Login"
-import AddNewLead from "./Pages/AddNewLead"
-import DailyReminder from "./Pages/DailyReminder"
-import Settings from "./Pages/Settings"
-import ViewPipeLine from "./Pages/ViewPipeLine"
-import { useEffect, useState } from "react"
-import { onAuthStateChanged } from "firebase/auth"
-import { auth, db } from "./firebase/firebase"
-import { doc, getDoc } from "firebase/firestore"
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "./firebase/firebase";
+import { doc, getDoc } from "firebase/firestore";
+
+// Pages
+import Home from "./Pages/Home/Home";
+import MarketingManagerRegister from "./Pages/MarketingManager/MarketingManagerRegister";
+import SalesManagerRegister from "./Pages/SalesManager/SalesManagerRegister";
+import CompanyOwnerRegister from "./Pages/CompanyOwner/CompanyOwnerRegister";
+import RoleSelection from "./Pages/RoleSelection";
+import Login from "./Pages/Login/Login";
+import AddNewLead from "./Pages/AddNewLead";
+import DailyReminder from "./Pages/DailyReminder";
+import Settings from "./Pages/Settings";
+import ViewPipeLine from "./Pages/ViewPipeLine";
+import GenerateFormLink from "./Pages/GenerateFormLink";
+import PublicForm from "./Pages/PublicForm"; // New public form component
 
 const App = () => {
-  const [authUser, setAuthUser] = useState(null)
-  const [userRole, setUserRole] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [authUser, setAuthUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log("Auth state changed:", user)
-
       if (user) {
         try {
-          // Check all possible collections for user data
-          const collections = ["companyOwner","marketingManager", "salesManager" ]
-          let userData = null
+          const collections = ["companyOwner", "marketingManager", "salesManager"];
+          let userData = null;
 
           for (const collection of collections) {
-            const userDoc = await getDoc(doc(db, collection, user.uid))
+            const userDoc = await getDoc(doc(db, collection, user.uid));
             if (userDoc.exists()) {
-              userData = userDoc.data()
-              console.log(`Found user data in ${collection}:`, userData)
-              break
+              userData = userDoc.data();
+              break;
             }
           }
 
-          if (userData) {
-            setUserRole(userData.role)
-          } else {
-            console.log("No user data found, setting role to null")
-            setUserRole(null)
-          }
-          setAuthUser(user)
+          setUserRole(userData?.role || null);
+          setAuthUser(user);
         } catch (error) {
-          console.error("Error fetching user data:", error)
-          setUserRole(null)
+          console.error("Error fetching user data:", error);
+          setUserRole(null);
         }
       } else {
-        setAuthUser(null)
-        setUserRole(null)
+        setAuthUser(null);
+        setUserRole(null);
       }
-      setLoading(false)
-    })
+      setLoading(false);
+    });
 
-    return () => unsubscribe()
-  }, [])
+    return () => unsubscribe();
+  }, []);
+
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-xl">Loading...</div>
       </div>
-    )
+
+    );
   }
 
-  // Role-based route protection
   const getDefaultRoute = () => {
-    if (!authUser) return "/login"
-
-    // If user is authenticated but has no role, send to role selection
-    if (!userRole) return "/role-selection"
+    if (!authUser) return "/login";
+    if (!userRole) return "/role-selection";
 
     switch (userRole) {
-      case "Company Owner":
-        return "/"
-      case "Marketing Manager":
-        return "/addnewlead"
-      case "Sales Manager":
-        return "/viewpipeline"
-      default:
-        return "/role-selection"
+      case "Company Owner": return "/";
+      case "Marketing Manager": return "/addnewlead";
+      case "Sales Manager": return "/viewpipeline";
+      default: return "/role-selection";
     }
-  }
+  };
 
   const canAccessRoute = (requiredRoles) => {
-    if (!authUser) return false
-    if (!userRole) return false
-    if (userRole === "Company Owner") return true
-    return requiredRoles.includes(userRole)
-  }
+    if (!authUser) return false;
+    if (!userRole) return false;
+    if (userRole === "Company Owner") return true;
+    return requiredRoles.includes(userRole);
+  };
+
 
   return (
     <Router>
@@ -103,8 +93,8 @@ const App = () => {
         <Route path="/marketing-manager/register" element={<MarketingManagerRegister />} />
         <Route path="/sales-manager/register" element={<SalesManagerRegister />} />
         <Route path="/company-owner/register" element={<CompanyOwnerRegister />} />
+        <Route path="/share-form/:uid" element={<PublicForm />} /> {/* Public form route */}
 
-        {/* Role selection route */}
         <Route
           path="/role-selection"
           element={
@@ -216,10 +206,31 @@ const App = () => {
           }
         />
 
+
+        <Route
+          path="/generate-form-link"
+          element={
+            authUser ? (
+              userRole ? (
+                canAccessRoute(["Company Owner","Sales Manager"]) ? (
+                  <GenerateFormLink />
+                ) : (
+                  <Navigate to={getDefaultRoute()} replace />
+                )
+              ) : (
+                <Navigate to="/role-selection" replace />
+              )
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
         <Route path="*" element={<Navigate to={getDefaultRoute()} replace />} />
       </Routes>
     </Router>
-  )
-}
+  );
+};
 
-export default App
+
+export default App;

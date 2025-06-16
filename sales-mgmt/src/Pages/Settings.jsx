@@ -2,77 +2,134 @@
 
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header/Header';
-import { db } from '../firebase/firebase';
-import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+
+import { db, auth } from '../firebase/firebase';
+import { collection, getDocs, query, doc, updateDoc, where, getDoc } from 'firebase/firestore';
 
 const Settings = () => {
-  const [activeTab, setActiveTab] = useState('Business Info'); // Default to Employee Details
+  const [activeTab, setActiveTab] = useState('Business Info');
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingEmployeeId, setEditingEmployeeId] = useState(null);
   const [newRole, setNewRole] = useState('');
+  const [error, setError] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+
 
   useEffect(() => {
     fetchEmployees();
   }, []);
 
-  const fetchEmployees = async () => {
+  const determineUserRole = async (userId) => {
     try {
-      const collections = ["companyOwner", "marketingManager", "salesManager"];
-      let allEmployees = [];
-
-      // Fetch data from each collection
-      for (const collectionName of collections) {
-        const q = query(collection(db, collectionName), orderBy("name", "asc"));
-        const querySnapshot = await getDocs(q);
-        const employeesData = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          collection: collectionName, 
-          ...doc.data(),
-        }));
-        allEmployees = [...allEmployees, ...employeesData];
+      // Check if user is a company owner
+      const ownerDoc = await getDoc(doc(db, 'companyOwner', userId));
+      if (ownerDoc.exists()) {
+        return 'Company Owner';
       }
 
-      setEmployees(allEmployees);
+      // Check if user is a marketing manager
+      const marketingDoc = await getDoc(doc(db, 'marketingManager', userId));
+      if (marketingDoc.exists()) {
+        return 'Marketing Manager';
+      }
+
+      // Check if user is a sales manager
+      const salesDoc = await getDoc(doc(db, 'salesManager', userId));
+      if (salesDoc.exists()) {
+        return 'Sales Manager';
+      }
+
+      return 'Unknown';
+    } catch (error) {
+      console.error("Error determining user role:", error);
+      return 'Error';
+    }
+  };
+
+  const fetchEmployees = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error("Please sign in to view settings");
+      }
+
+      const role = await determineUserRole(currentUser.uid);
+      setUserRole(role);
+
+      if (role === 'Company Owner') {
+        // Company owners can see all employees in their company
+        const ownerDoc = await getDoc(doc(db, 'companyOwner', currentUser.uid));
+        if (!ownerDoc.exists()) {
+          throw new Error("Company owner record not found");
+        }
+
+        const companyName = ownerDoc.data().companyName;
+        const employeesList = [];
+
+        // Get all company owners in the same company
+        const ownersQuery = query(
+          collection(db, 'companyOwner'),
+          where('companyName', '==', companyName)
+        );
+        const ownersSnapshot = await getDocs(ownersQuery);
+        ownersSnapshot.forEach(doc => {
+          employeesList.push({
+            id: doc.id,
+            collection: 'companyOwner',
+            ...doc.data()
+          });
+        });
+
+        setEmployees(employeesList);
+      } else if (role === 'Marketing Manager' || role === 'Sales Manager') {
+        // Managers can only see their own data
+        const collectionName = role === 'Marketing Manager' ? 'marketingManager' : 'salesManager';
+        const managerDoc = await getDoc(doc(db, collectionName, currentUser.uid));
+        
+        if (managerDoc.exists()) {
+          setEmployees([{
+            id: managerDoc.id,
+            collection: collectionName,
+            ...managerDoc.data()
+          }]);
+        } else {
+          throw new Error(`${role} record not found`);
+        }
+      } else {
+        throw new Error("You don't have permission to view this page");
+      }
     } catch (error) {
       console.error("Error fetching employees:", error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleEditClick = (employee) => {
+    if (userRole !== 'Company Owner') {
+      setError("Only company owners can edit roles");
+      return;
+    }
     setEditingEmployeeId(employee.id);
-    setNewRole(employee.role); // Pre-fill the current role
+    setNewRole(employee.role);
   };
 
   const handleRoleChange = async (employeeId, currentCollection) => {
     try {
-      // Map the new role to the corresponding collection
-      const roleToCollectionMap = {
-        "Company Owner": "companyOwner",
-        "Marketing Manager": "marketingManager",
-        "Sales Manager": "salesManager",
-      };
-      const newCollection = roleToCollectionMap[newRole];
-
-      if (!newCollection) {
-        throw new Error("Invalid role selected");
+      if (userRole !== 'Company Owner') {
+        throw new Error("Only company owners can change roles");
       }
-      const employee = employees.find(emp => emp.id === employeeId && emp.collection === currentCollection);
-      if (!employee) {
-        throw new Error("Employee not found");
-      }
-      if (currentCollection === newCollection) {
-        setEditingEmployeeId(null);
-        return;
-      }
-      const oldDocRef = doc(db, currentCollection, employeeId);
-      await updateDoc(oldDocRef, { role: newRole }); // Update role in current collection
+      // In your current security rules, role changes aren't allowed
+      // You would need to update your rules to allow this
+      setError("Role changes are currently disabled");
       setEditingEmployeeId(null);
-      await fetchEmployees();
     } catch (error) {
       console.error("Error updating employee role:", error);
+      setError(error.message);
     }
   };
 
@@ -90,7 +147,6 @@ const Settings = () => {
           <div className="p-6">
             <h2 className="text-xl font-semibold mb-4">Business Info</h2>
             <p className="text-gray-600">Configure your business information here.</p>
-            {/* Add form fields for business info if needed */}
           </div>
         );
       case "WhatsApp Template":
@@ -98,7 +154,6 @@ const Settings = () => {
           <div className="p-6">
             <h2 className="text-xl font-semibold mb-4">WhatsApp Template</h2>
             <p className="text-gray-600">Manage your WhatsApp templates here.</p>
-            {/* Add template management UI if needed */}
           </div>
         );
       case "Notification Preferences":
@@ -106,13 +161,17 @@ const Settings = () => {
           <div className="p-6">
             <h2 className="text-xl font-semibold mb-4">Notification Preferences</h2>
             <p className="text-gray-600">Set your notification preferences here.</p>
-            {/* Add notification settings UI if needed */}
           </div>
         );
       case "Employee Details":
         return (
           <div className="p-6">
             <h2 className="text-xl font-semibold mb-4">Employee Details</h2>
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                {error}
+              </div>
+            )}
             {loading ? (
               <div className="text-center text-gray-600">Loading employees...</div>
             ) : employees.length === 0 ? (
@@ -131,9 +190,11 @@ const Settings = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Role
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
+                      {userRole === 'Company Owner' && (
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Action
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -146,45 +207,20 @@ const Settings = () => {
                           {employee.email}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {editingEmployeeId === employee.id ? (
-                            <select
-                              value={newRole}
-                              onChange={(e) => setNewRole(e.target.value)}
-                              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            >
-                              <option value="Company Owner">Company Owner</option>
-                              <option value="Marketing Manager">Marketing Manager</option>
-                              <option value="Sales Manager">Sales Manager</option>
-                            </select>
-                          ) : (
-                            employee.role
-                          )}
+                          {employee.role}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {editingEmployeeId === employee.id ? (
-                            <div className="flex gap-2">
-                              <button
-                                className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
-                                onClick={() => handleRoleChange(employee.id, employee.collection)}
-                              >
-                                Save
-                              </button>
-                              <button
-                                className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
-                                onClick={() => setSetEditingEmployeeId(null)}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
+                        {userRole === 'Company Owner' && (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <button
                               className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
                               onClick={() => handleEditClick(employee)}
                             >
                               Edit
                             </button>
-                          )}
-                        </td>
+
+                          </td>
+                        )}
+
                       </tr>
                     ))}
                   </tbody>

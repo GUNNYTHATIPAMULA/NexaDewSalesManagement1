@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+
+import { useState, useEffect } from "react"
 import Header from "../components/Header/Header"
 import { db } from "../firebase/firebase"
-import { collection, addDoc } from "firebase/firestore"
+import { collection, addDoc, doc, getDoc } from "firebase/firestore"
+
 import { useAuthState } from "react-firebase-hooks/auth"
 import { auth } from "../firebase/firebase"
 
@@ -12,6 +14,9 @@ const AddNewLead = () => {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState("")
   const [error, setError] = useState("")
+
+  const [userCompany, setUserCompany] = useState("")
+
 
   const [formData, setFormData] = useState({
     name: "",
@@ -28,9 +33,42 @@ const AddNewLead = () => {
     timeline: "",
     source: "",
     notes: "",
+
     priority: "Medium",
     status: "New",
   })
+
+  // Fetch the user's company name when the component mounts
+  useEffect(() => {
+    const fetchUserCompany = async () => {
+      if (!user) return
+
+      try {
+        // Try fetching from marketingManager collection
+        let userDoc = await getDoc(doc(db, "marketingManager", user.uid))
+        if (userDoc.exists()) {
+          setUserCompany(userDoc.data().companyName || "")
+          return
+        }
+
+        // If not found in marketingManager, try salesManager collection
+        userDoc = await getDoc(doc(db, "companyOwner", user.uid))
+        if (userDoc.exists()) {
+          setUserCompany(userDoc.data().companyName || "")
+          return
+        }
+
+        // If user data is not found in either collection
+        setError("User data not found. Please contact support.")
+      } catch (err) {
+        console.error("Error fetching user company:", err.message)
+        setError("Failed to fetch user data. Please try again.")
+      }
+    }
+
+    fetchUserCompany()
+  }, [user])
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -53,9 +91,17 @@ const AddNewLead = () => {
       return
     }
 
+
+    if (!userCompany) {
+      setError("Unable to determine your company. Please contact support.")
+      setLoading(false)
+      return
+    }
+
     try {
       const leadData = {
         ...formData,
+        submittedLead: userCompany, // Add the user's company name as submittedLead
         createdAt: new Date().toISOString(),
         createdBy: user?.uid || "unknown",
         createdByEmail: user?.email || "unknown",
@@ -86,7 +132,13 @@ const AddNewLead = () => {
       })
     } catch (error) {
       console.error("Error adding lead:", error)
-      setError("Failed to add lead. Please try again.")
+
+      if (error.code === "permission-denied") {
+        setError("Permission denied. Please ensure you have the necessary permissions to add a lead.")
+      } else {
+        setError("Failed to add lead. Please try again.")
+      }
+
     } finally {
       setLoading(false)
     }
@@ -443,4 +495,6 @@ const AddNewLead = () => {
   )
 }
 
+
 export default AddNewLead
+
