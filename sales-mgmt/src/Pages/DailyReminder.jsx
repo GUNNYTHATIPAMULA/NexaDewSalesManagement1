@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -25,16 +26,20 @@ const DailyReminder = () => {
   const [isLostPopupOpen, setIsLostPopupOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState(null)
 
+
   useEffect(() => {
     const fetchUserCompanyAndLeads = async () => {
       if (!user) {
+
         setError("User not authenticated. Please log in.")
         setLoading(false)
         return
+
       }
 
       try {
         // Try fetching from companyOwner collection
+
         let userDoc = await getDoc(doc(db, "companyOwner", user.uid))
         let companyName = ""
         if (userDoc.exists()) {
@@ -99,11 +104,10 @@ const DailyReminder = () => {
         where("submittedLead", "==", companyName),
         where("status", "==", "Follow-Up"),
         where("followUpDate", "==", todayStr),
-      )
-
-      // If the user is a companyOwner, add the companyOwnerId filter
+      )// If the user is a companyOwner, add the companyOwnerId filter
       if (companyOwnerId) {
         q = query(
+
           collection(db, "leads"),
           where("submittedLead", "==", companyName),
           where("status", "==", "Follow-Up"),
@@ -364,7 +368,6 @@ const DailyReminder = () => {
           title="Confirm Lost"
           message="Are you sure you want to mark this lead as lost?"
         />
-
         {/* Leads Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
@@ -474,7 +477,7 @@ const DailyReminder = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default DailyReminder
+export default DailyReminder;

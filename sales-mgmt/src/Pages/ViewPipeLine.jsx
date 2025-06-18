@@ -8,6 +8,7 @@ import { auth } from "../firebase/firebase"
 import Header from "../components/Header/Header"
 import Popup from "../components/Popup/Popup"
 
+
 const ViewPipeLine = () => {
   const [user] = useAuthState(auth)
   const [leads, setLeads] = useState([])
@@ -20,13 +21,13 @@ const ViewPipeLine = () => {
   const [userCompany, setUserCompany] = useState("")
   const [userRole, setUserRole] = useState("")
   const [error, setError] = useState("")
-
   // Popup states
   const [isContactPopupOpen, setIsContactPopupOpen] = useState(false)
   const [isInterestPopupOpen, setIsInterestPopupOpen] = useState(false)
   const [isWonPopupOpen, setIsWonPopupOpen] = useState(false)
   const [isLostPopupOpen, setIsLostPopupOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState(null)
+
 
   useEffect(() => {
     const fetchUserCompanyAndLeads = async () => {
@@ -62,7 +63,6 @@ const ViewPipeLine = () => {
           setLoading(false)
           return
         }
-
         setUserCompany(companyName)
         setUserRole(role)
 
@@ -74,7 +74,6 @@ const ViewPipeLine = () => {
         setLoading(false)
       }
     }
-
     fetchUserCompanyAndLeads()
   }, [user])
 
@@ -125,7 +124,6 @@ const ViewPipeLine = () => {
       setError(`Failed to update lead status to ${newStatus}. Please try again.`)
     }
   }
-
   // Popup handlers
   const handleContactClick = (leadId) => {
     setSelectedLeadId(leadId)
@@ -173,6 +171,7 @@ const ViewPipeLine = () => {
     setIsWonPopupOpen(false)
     setIsLostPopupOpen(false)
   }
+
 
   const handleFollowUpClick = (leadId) => {
     setSelectedLeadId(leadId)
@@ -240,7 +239,7 @@ const ViewPipeLine = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      <Header/>
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Sales Pipeline</h1>
@@ -332,7 +331,6 @@ const ViewPipeLine = () => {
             </div>
           </div>
         )}
-
         {/* Confirmation Popups */}
         <Popup
           isOpen={isContactPopupOpen}
@@ -365,7 +363,6 @@ const ViewPipeLine = () => {
           title="Confirm Lost"
           message="Are you sure you want to mark this lead as lost?"
         />
-
         {/* Leads Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="menubar">

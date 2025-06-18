@@ -20,6 +20,9 @@ const AddNewLead = () => {
   const [userCompany, setUserCompany] = useState("")
 
 
+  const [userCompany, setUserCompany] = useState("")
+
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",

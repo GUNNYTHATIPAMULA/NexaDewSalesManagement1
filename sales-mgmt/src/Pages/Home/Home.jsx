@@ -74,7 +74,6 @@ const Home = () => {
         id: doc.id,
         ...doc.data(),
       }))
-
       // Client-side filtering as backup (in case security rules are too restrictive)
       const filteredLeads = allLeads.filter((lead) => {
         const leadCompany = lead.submittedLead?.toLowerCase() || lead.submittedLeadLower?.toLowerCase()
@@ -87,6 +86,7 @@ const Home = () => {
     } catch (error) {
       console.error("Error fetching leads:", error)
       setError("Failed to fetch leads. Please check your permissions.")
+
     } finally {
       setLoading(false)
     }
@@ -149,7 +149,6 @@ const Home = () => {
         return "📋"
     }
   }
-
   const getStatusColor = (status) => {
     switch (status) {
       case "Won":
@@ -181,7 +180,6 @@ const Home = () => {
       </div>
     )
   }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
         <Header/>
