@@ -18,8 +18,6 @@ const AddNewLead = () => {
   const [isPopupOpen, setIsPopupOpen] = useState(false)
 
   const [userCompany, setUserCompany] = useState("")
-
-
   const [formData, setFormData] = useState({
     name: "",
     email: "",

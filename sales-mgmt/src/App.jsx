@@ -213,6 +213,7 @@ const App = () => {
             authUser ? (
               userRole ? (
                 canAccessRoute(["Company Owner","Marketing Manager"]) ? (
+
                   <GenerateFormLink />
                 ) : (
                   <Navigate to={getDefaultRoute()} replace />

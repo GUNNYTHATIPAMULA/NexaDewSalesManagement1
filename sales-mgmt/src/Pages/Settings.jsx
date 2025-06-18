@@ -1,5 +1,4 @@
 "use client"
-
 import { useState, useEffect } from "react"
 import { db, auth } from "../firebase/firebase"
 import { collection, getDocs, query, doc, updateDoc, where, getDoc, setDoc, deleteDoc } from "firebase/firestore" // Added deleteDoc
@@ -99,7 +98,6 @@ const Settings = () => {
       setLoading(false)
     }
   }
-
   const fetchEmployeesByCompany = async (companyName) => {
     try {
       const employeesList = []
@@ -442,7 +440,6 @@ const Settings = () => {
                 {success}
               </div>
             )}
-
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
