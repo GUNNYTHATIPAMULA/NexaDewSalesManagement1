@@ -24,7 +24,7 @@ function GenerateFormLink() {
       }
 
       try {
-        const collections = ["companyOwner", "salesManager"]
+        const collections = ["companyOwner", "marketingManager"]
         let userData = null
         let role = null
 
@@ -32,7 +32,7 @@ function GenerateFormLink() {
           const userDoc = await getDoc(doc(db, collection, user.uid))
           if (userDoc.exists()) {
             userData = userDoc.data()
-            role = collection === "companyOwner" ? "Company Owner" : "Sales Manager"
+            role = collection === "companyOwner" ? "Company Owner" : "Marketing Manager"
             break
           }
         }
@@ -197,5 +197,5 @@ function GenerateFormLink() {
     </div>
   )
 }
-
 export default GenerateFormLink
+

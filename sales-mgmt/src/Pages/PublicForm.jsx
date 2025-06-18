@@ -45,7 +45,7 @@ const PublicForm = () => {
         // Check both companyOwner and salesManager collections
         const collections = [
           { name: "companyOwner", role: "Company Owner" },
-          { name: "salesManager", role: "Sales Manager" },
+          { name: "marketingManager", role: "Marketing Manager" },
         ]
 
         let userData = null
@@ -459,5 +459,5 @@ const PublicForm = () => {
     </div>
   )
 }
-
 export default PublicForm
+
