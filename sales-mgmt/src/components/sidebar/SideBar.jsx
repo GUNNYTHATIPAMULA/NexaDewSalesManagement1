@@ -82,7 +82,6 @@ const SideBar = forwardRef((props, ref) => {
                 />
               </li>
             )}
-
             {canAccess(["Company Owner", "Sales Manager"]) && (
               <li
                 className="hover:bg-black w-full hover:text-white p-2 rounded-lg"
