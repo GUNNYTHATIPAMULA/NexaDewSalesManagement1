@@ -173,7 +173,7 @@ const App = () => {
           element={
             authUser ? (
               userRole ? (
-                canAccessRoute(["Company Owner"]) ? (
+                canAccessRoute(["Company Owner","Sales Manager"]) ? (
                   <DailyReminder />
                 ) : (
                   <Navigate to={getDefaultRoute()} replace />
@@ -212,7 +212,7 @@ const App = () => {
           element={
             authUser ? (
               userRole ? (
-                canAccessRoute(["Company Owner","Sales Manager"]) ? (
+                canAccessRoute(["Company Owner","Marketing Manager"]) ? (
                   <GenerateFormLink />
                 ) : (
                   <Navigate to={getDefaultRoute()} replace />

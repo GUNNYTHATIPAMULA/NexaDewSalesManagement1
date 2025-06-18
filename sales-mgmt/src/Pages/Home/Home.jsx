@@ -64,31 +64,29 @@ const Home = () => {
 
   const fetchLeads = async (companyName, role) => {
     try {
-      const leadsRef = collection(db, "leads")
-      const querySnapshot = await getDocs(leadsRef)
+      setLoading(true)
 
-      const allLeads = querySnapshot.docs.map((doc) => ({
+      // Fetch all leads (security rules will filter automatically)
+      const leadsRef = collection(db, "leads")
+      const snapshot = await getDocs(leadsRef)
+
+      const allLeads = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }))
 
+      // Client-side filtering as backup (in case security rules are too restrictive)
       const filteredLeads = allLeads.filter((lead) => {
-        const leadCompany = lead.submittedLead?.toLowerCase() || lead.submittedLeadLower?.toLowerCase() || ""
+        const leadCompany = lead.submittedLead?.toLowerCase() || lead.submittedLeadLower?.toLowerCase()
         const userCompanyLower = companyName.toLowerCase()
 
-        return (
-          leadCompany === userCompanyLower || lead.companyOwnerId === user.uid || lead.createdBy === user.uid || true
-        )
+        return leadCompany === userCompanyLower || lead.companyOwnerId === user.uid || lead.createdBy === user.uid
       })
 
       setLeads(filteredLeads)
     } catch (error) {
       console.error("Error fetching leads:", error)
-      if (error.code === "permission-denied") {
-        setError("Permission denied. Please ensure you have the necessary permissions to view leads.")
-      } else {
-        setError("Failed to fetch leads. Please try again.")
-      }
+      setError("Failed to fetch leads. Please check your permissions.")
     } finally {
       setLoading(false)
     }

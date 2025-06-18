@@ -89,7 +89,7 @@ const Header = () => {
             click={handleOpenSidebar}
           />
           <div className="text py-2">
-            <h1 className="font-bold text-2xl">NexaDew</h1>
+            <h1 className="font-bold text-2xl">{userData?.companyName}</h1>
           </div>
         </div>
         <div className="flex items-center">

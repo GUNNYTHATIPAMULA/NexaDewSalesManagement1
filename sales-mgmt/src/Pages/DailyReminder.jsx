@@ -1,131 +1,135 @@
+"use client"
 
-import React, { useState, useEffect } from 'react';
-import Header from '../components/Header/Header';
-import { db } from '../firebase/firebase';
-import { collection, getDocs, query, orderBy, doc, updateDoc, where, getDoc } from 'firebase/firestore';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth } from '../firebase/firebase';
+import { useState, useEffect } from "react"
+import Header from "../components/Header/Header"
+import Popup from "../components/Popup/Popup"
+import { db } from "../firebase/firebase"
+import { collection, getDocs, query, doc, updateDoc, where, getDoc } from "firebase/firestore"
+import { useAuthState } from "react-firebase-hooks/auth"
+import { auth } from "../firebase/firebase"
 
 const DailyReminder = () => {
-  const [user] = useAuthState(auth);
-  const [leads, setLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedLeadId, setSelectedLeadId] = useState(null);
-  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
-  const [followUpDate, setFollowUpDate] = useState('');
-  const [userCompany, setUserCompany] = useState('');
-  const [userRole, setUserRole] = useState(''); // To determine if user is companyOwner
-  const [error, setError] = useState('');
+  const [user] = useAuthState(auth)
+  const [leads, setLeads] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedLeadId, setSelectedLeadId] = useState(null)
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false)
+  const [followUpDate, setFollowUpDate] = useState("")
+  const [userCompany, setUserCompany] = useState("")
+  const [userRole, setUserRole] = useState("")
+  const [error, setError] = useState("")
+
+  // Popup states
+  const [isFollowUpPopupOpen, setIsFollowUpPopupOpen] = useState(false)
+  const [isWonPopupOpen, setIsWonPopupOpen] = useState(false)
+  const [isLostPopupOpen, setIsLostPopupOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState(null)
 
   useEffect(() => {
     const fetchUserCompanyAndLeads = async () => {
       if (!user) {
-        setError('User not authenticated. Please log in.');
-        setLoading(false);
-        return;
+        setError("User not authenticated. Please log in.")
+        setLoading(false)
+        return
       }
 
       try {
         // Try fetching from companyOwner collection
-        let userDoc = await getDoc(doc(db, 'companyOwner', user.uid));
-        let companyName = '';
+        let userDoc = await getDoc(doc(db, "companyOwner", user.uid))
+        let companyName = ""
         if (userDoc.exists()) {
-          companyName = userDoc.data().companyName || '';
-          setUserCompany(companyName);
-          setUserRole('companyOwner');
+          companyName = userDoc.data().companyName || ""
+          setUserCompany(companyName)
+          setUserRole("companyOwner")
         } else {
           // Try marketingManager collection
-          userDoc = await getDoc(doc(db, 'marketingManager', user.uid));
+          userDoc = await getDoc(doc(db, "marketingManager", user.uid))
           if (userDoc.exists()) {
-            companyName = userDoc.data().companyName || '';
-            setUserCompany(companyName);
-            setUserRole('marketingManager');
+            companyName = userDoc.data().companyName || ""
+            setUserCompany(companyName)
+            setUserRole("marketingManager")
           } else {
             // Try salesManager collection
-            userDoc = await getDoc(doc(db, 'salesManager', user.uid));
+            userDoc = await getDoc(doc(db, "salesManager", user.uid))
             if (userDoc.exists()) {
-              companyName = userDoc.data().companyName || '';
-              setUserCompany(companyName);
-              setUserRole('salesManager');
+              companyName = userDoc.data().companyName || ""
+              setUserCompany(companyName)
+              setUserRole("salesManager")
             } else {
-              setError('User data not found. Please contact support.');
-              setLoading(false);
-              return;
+              setError("User data not found. Please contact support.")
+              setLoading(false)
+              return
             }
           }
         }
 
         if (!companyName) {
-          setError('Unable to determine your company. Please contact support.');
-          setLoading(false);
-          return;
+          setError("Unable to determine your company. Please contact support.")
+          setLoading(false)
+          return
         }
 
         // Fetch leads for the user's company
-        await fetchLeads(companyName, userRole === 'companyOwner' ? user.uid : null);
+        await fetchLeads(companyName, userRole === "companyOwner" ? user.uid : null)
       } catch (err) {
-        console.error('Error fetching user company:', err.message);
-        setError(`Error: ${err.message}`);
-        setLoading(false);
+        console.error("Error fetching user company:", err.message)
+        setError(`Error: ${err.message}`)
+        setLoading(false)
       }
-    };
+    }
 
-    fetchUserCompanyAndLeads();
-  }, [user]);
+    fetchUserCompanyAndLeads()
+  }, [user])
 
   const fetchLeads = async (companyName, companyOwnerId) => {
     try {
-      setLoading(true);
-      setError('');
+      setLoading(true)
+      setError("")
 
       // Current date in YYYY-MM-DD format, adjusted for IST (UTC+5:30)
-      const today = new Date();
+      const today = new Date()
       // Adjust for IST (UTC+5:30)
-      const istOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
-      const istDate = new Date(today.getTime() + istOffset);
-      const todayStr = istDate.toISOString().split('T')[0]; // e.g., "2025-06-09"
+      const istOffset = 5.5 * 60 * 60 * 1000 // 5 hours 30 minutes in milliseconds
+      const istDate = new Date(today.getTime() + istOffset)
+      const todayStr = istDate.toISOString().split("T")[0] // e.g., "2025-06-09"
 
       // Base query to filter leads by companyName, status, and followUpDate
       let q = query(
-        collection(db, 'leads'),
-        where('submittedLead', '==', companyName),
-        where('status', '==', 'Follow-Up'),
-        where('followUpDate', '==', todayStr)
-        // Uncomment if you want to sort by createdAt
-        // orderBy('createdAt', 'desc')
-      );
+        collection(db, "leads"),
+        where("submittedLead", "==", companyName),
+        where("status", "==", "Follow-Up"),
+        where("followUpDate", "==", todayStr),
+      )
 
       // If the user is a companyOwner, add the companyOwnerId filter
       if (companyOwnerId) {
         q = query(
-          collection(db, 'leads'),
-          where('submittedLead', '==', companyName),
-          where('status', '==', 'Follow-Up'),
-          where('followUpDate', '==', todayStr),
-          where('companyOwnerId', '==', companyOwnerId)
-          // Uncomment if you want to sort by createdAt
-          // orderBy('createdAt', 'desc')
-        );
+          collection(db, "leads"),
+          where("submittedLead", "==", companyName),
+          where("status", "==", "Follow-Up"),
+          where("followUpDate", "==", todayStr),
+          where("companyOwnerId", "==", companyOwnerId),
+        )
       }
 
-      const querySnapshot = await getDocs(q);
+      const querySnapshot = await getDocs(q)
 
       if (querySnapshot.empty) {
-        setLeads([]);
-        setLoading(false);
-        return;
+        setLeads([])
+        setLoading(false)
+        return
       }
 
       const leadsData = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-      }));
+      }))
 
-      setLeads(leadsData);
+      setLeads(leadsData)
     } catch (error) {
-      console.error('Error fetching leads:', error);
-      if (error.code === 'failed-precondition') {
-        if (error.message.includes('requires an index')) {
+      console.error("Error fetching leads:", error)
+      if (error.code === "failed-precondition") {
+        if (error.message.includes("requires an index")) {
           setError(
             <span>
               This query requires a Firestore index. Please ask your admin to create it or
@@ -136,86 +140,126 @@ const DailyReminder = () => {
                 className="text-blue-600 underline ml-1"
               >
                 click here to create it
-              </a>.
+              </a>
+              .
               <div className="mt-2 text-sm">
                 Required index fields: submittedLead (asc), status (asc), followUpDate (asc), companyOwnerId (asc)
-                {companyOwnerId && ', companyOwnerId (asc)'}
-                {/* Uncomment if you re-enable orderBy */}
-                {/* , createdAt (desc) */}
+                {companyOwnerId && ", companyOwnerId (asc)"}
               </div>
-            </span>
-          );
+            </span>,
+          )
         } else {
-          setError('Query error. Please check your parameters.');
+          setError("Query error. Please check your parameters.")
         }
-      } else if (error.code === 'permission-denied') {
-        setError("You don't have permission to access these leads.");
+      } else if (error.code === "permission-denied") {
+        setError("You don't have permission to access these leads.")
       } else {
-        setError('Failed to load leads. Please try again.');
+        setError("Failed to load leads. Please try again.")
       }
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const getStatusColor = (status) => {
     const colors = {
-      New: 'bg-blue-100 text-blue-800',
-      Contacted: 'bg-yellow-100 text-yellow-800',
-      Qualified: 'bg-purple-100 text-purple-800',
-      'Follow-Up': 'bg-indigo-100 text-indigo-800',
-      Won: 'bg-green-100 text-green-800',
-      Lost: 'bg-red-100 text-red-800',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
-  };
+      New: "bg-blue-100 text-blue-800",
+      Contacted: "bg-yellow-100 text-yellow-800",
+      Qualified: "bg-purple-100 text-purple-800",
+      "Follow-Up": "bg-indigo-100 text-indigo-800",
+      Won: "bg-green-100 text-green-800",
+      Lost: "bg-red-100 text-red-800",
+    }
+    return colors[status] || "bg-gray-100 text-gray-800"
+  }
 
   const getPriorityColor = (priority) => {
     const colors = {
-      Low: 'bg-gray-100 text-gray-800',
-      Medium: 'bg-blue-100 text-blue-800',
-      High: 'bg-orange-100 text-orange-800',
-      Urgent: 'bg-red-100 text-red-800',
-    };
-    return colors[priority] || 'bg-gray-100 text-gray-800';
-  };
+      Low: "bg-gray-100 text-gray-800",
+      Medium: "bg-blue-100 text-blue-800",
+      High: "bg-orange-100 text-orange-800",
+      Urgent: "bg-red-100 text-red-800",
+    }
+    return colors[priority] || "bg-gray-100 text-gray-800"
+  }
 
+  // Popup handlers
   const handleFollowUpClick = (leadId) => {
-    setSelectedLeadId(leadId);
-    setShowFollowUpModal(true);
-    const today = new Date().toISOString().split('T')[0];
-    setFollowUpDate(today);
-  };
+    setSelectedLeadId(leadId)
+    setPendingAction({ leadId, type: "followUp" })
+    setIsFollowUpPopupOpen(true)
+  }
+
+  const handleWonClick = (leadId) => {
+    setSelectedLeadId(leadId)
+    setPendingAction({ leadId, status: "Won" })
+    setIsWonPopupOpen(true)
+  }
+
+  const handleLostClick = (leadId) => {
+    setSelectedLeadId(leadId)
+    setPendingAction({ leadId, status: "Lost" })
+    setIsLostPopupOpen(true)
+  }
+
+  const handlePopupConfirm = async (popupType) => {
+    if (pendingAction) {
+      if (popupType === "followUp") {
+        // Open the follow-up modal for date selection
+        setShowFollowUpModal(true)
+        const today = new Date().toISOString().split("T")[0]
+        setFollowUpDate(today)
+      } else {
+        // Handle Won/Lost status changes
+        await handleStatusChange(pendingAction.leadId, pendingAction.status)
+      }
+      setPendingAction(null)
+      setSelectedLeadId(null)
+    }
+
+    // Close all popups
+    setIsFollowUpPopupOpen(false)
+    setIsWonPopupOpen(false)
+    setIsLostPopupOpen(false)
+  }
+
+  const handlePopupCancel = () => {
+    setPendingAction(null)
+    setSelectedLeadId(null)
+    setIsFollowUpPopupOpen(false)
+    setIsWonPopupOpen(false)
+    setIsLostPopupOpen(false)
+  }
 
   const handleFollowUpSubmit = async () => {
     if (selectedLeadId && followUpDate) {
       try {
-        const leadRef = doc(db, 'leads', selectedLeadId);
+        const leadRef = doc(db, "leads", selectedLeadId)
         await updateDoc(leadRef, {
-          status: 'Follow-Up',
+          status: "Follow-Up",
           followUpDate: followUpDate,
-        });
-        setShowFollowUpModal(false);
-        setSelectedLeadId(null);
-        setFollowUpDate('');
-        await fetchLeads(userCompany, userRole === 'companyOwner' ? user.uid : null);
+        })
+        setShowFollowUpModal(false)
+        setSelectedLeadId(null)
+        setFollowUpDate("")
+        await fetchLeads(userCompany, userRole === "companyOwner" ? user.uid : null)
       } catch (error) {
-        console.error('Error updating follow-up:', error);
-        setError('Failed to update follow-up. Please try again.');
+        console.error("Error updating follow-up:", error)
+        setError("Failed to update follow-up. Please try again.")
       }
     }
-  };
+  }
 
   const handleStatusChange = async (leadId, newStatus) => {
     try {
-      const leadRef = doc(db, 'leads', leadId);
-      await updateDoc(leadRef, { status: newStatus });
-      await fetchLeads(userCompany, userRole === 'companyOwner' ? user.uid : null);
+      const leadRef = doc(db, "leads", leadId)
+      await updateDoc(leadRef, { status: newStatus })
+      await fetchLeads(userCompany, userRole === "companyOwner" ? user.uid : null)
     } catch (error) {
-      console.error(`Error updating lead status to ${newStatus}:`, error);
-      setError(`Failed to update lead status to ${newStatus}. Please try again.`);
+      console.error(`Error updating lead status to ${newStatus}:`, error)
+      setError(`Failed to update lead status to ${newStatus}. Please try again.`)
     }
-  };
+  }
 
   if (loading) {
     return (
@@ -225,7 +269,7 @@ const DailyReminder = () => {
           <div className="text-xl">Loading reminders...</div>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -252,17 +296,11 @@ const DailyReminder = () => {
             </svg>
             Daily Reminder
           </h1>
-          <p className="text-gray-600">
-            Follow-up leads scheduled for today ({new Date().toLocaleDateString()})
-          </p>
+          <p className="text-gray-600">Follow-up leads scheduled for today ({new Date().toLocaleDateString()})</p>
         </div>
 
         {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
 
         {/* Follow-Up Modal */}
         {showFollowUpModal && (
@@ -270,24 +308,22 @@ const DailyReminder = () => {
             <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-sm">
               <h2 className="text-lg font-semibold mb-4">Schedule Follow-Up</h2>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Follow-Up Date
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Follow-Up Date</label>
                 <input
                   type="date"
                   value={followUpDate}
                   onChange={(e) => setFollowUpDate(e.target.value)}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  min={new Date().toISOString().split('T')[0]}
+                  min={new Date().toISOString().split("T")[0]}
                 />
               </div>
               <div className="flex gap-2 justify-end">
                 <button
                   className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
                   onClick={() => {
-                    setShowFollowUpModal(false);
-                    setSelectedLeadId(null);
-                    setFollowUpDate('');
+                    setShowFollowUpModal(false)
+                    setSelectedLeadId(null)
+                    setFollowUpDate("")
                   }}
                 >
                   Cancel
@@ -303,6 +339,31 @@ const DailyReminder = () => {
             </div>
           </div>
         )}
+
+        {/* Confirmation Popups */}
+        <Popup
+          isOpen={isFollowUpPopupOpen}
+          onCancel={handlePopupCancel}
+          onConfirm={() => handlePopupConfirm("followUp")}
+          title="Confirm Follow-Up"
+          message="Are you sure you want to schedule a follow-up for this lead?"
+        />
+
+        <Popup
+          isOpen={isWonPopupOpen}
+          onCancel={handlePopupCancel}
+          onConfirm={() => handlePopupConfirm("won")}
+          title="Confirm Won"
+          message="Are you sure you want to mark this lead as won?"
+        />
+
+        <Popup
+          isOpen={isLostPopupOpen}
+          onCancel={handlePopupCancel}
+          onConfirm={() => handlePopupConfirm("lost")}
+          title="Confirm Lost"
+          message="Are you sure you want to mark this lead as lost?"
+        />
 
         {/* Leads Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -342,39 +403,39 @@ const DailyReminder = () => {
                           <div className="flex-shrink-0 h-10 w-10">
                             <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
                               <span className="text-sm font-medium text-gray-700">
-                                {lead.name?.charAt(0).toUpperCase() || 'L'}
+                                {lead.name?.charAt(0).toUpperCase() || "L"}
                               </span>
                             </div>
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{lead.name || 'No name'}</div>
-                            <div className="text-sm text-gray-500">{lead.company || 'No company'}</div>
+                            <div className="text-sm font-medium text-gray-900">{lead.name || "No name"}</div>
+                            <div className="text-sm text-gray-500">{lead.company || "No company"}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{lead.email || 'No email'}</div>
-                        <div className="text-sm text-gray-500">{lead.phone || 'No phone'}</div>
+                        <div className="text-sm text-gray-900">{lead.email || "No email"}</div>
+                        <div className="text-sm text-gray-500">{lead.phone || "No phone"}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(lead.status)}`}
                         >
-                          {lead.status || 'Unknown'}
+                          {lead.status || "Unknown"}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(lead.priority)}`}
                         >
-                          {lead.priority || 'Unknown'}
+                          {lead.priority || "Unknown"}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {lead.followUpDate ? new Date(lead.followUpDate).toLocaleDateString() : 'N/A'}
+                        {lead.followUpDate ? new Date(lead.followUpDate).toLocaleDateString() : "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : 'N/A'}
+                        {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex gap-2">
@@ -386,13 +447,13 @@ const DailyReminder = () => {
                           </button>
                           <button
                             className="bg-green-500 p-2 rounded-md text-white hover:bg-green-600"
-                            onClick={() => handleStatusChange(lead.id, 'Won')}
+                            onClick={() => handleWonClick(lead.id)}
                           >
                             Won
                           </button>
                           <button
                             className="bg-red-500 p-2 rounded-md text-white hover:bg-red-600"
-                            onClick={() => handleStatusChange(lead.id, 'Lost')}
+                            onClick={() => handleLostClick(lead.id)}
                           >
                             Lost
                           </button>
@@ -413,8 +474,7 @@ const DailyReminder = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default DailyReminder;
-
+export default DailyReminder

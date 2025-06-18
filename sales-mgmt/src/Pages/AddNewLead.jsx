@@ -8,12 +8,14 @@ import { collection, addDoc, doc, getDoc } from "firebase/firestore"
 
 import { useAuthState } from "react-firebase-hooks/auth"
 import { auth } from "../firebase/firebase"
+import Popup from "../components/Popup/Popup"
 
 const AddNewLead = () => {
   const [user] = useAuthState(auth)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState("")
   const [error, setError] = useState("")
+  const [isPopupOpen, setIsPopupOpen] = useState(false)
 
   const [userCompany, setUserCompany] = useState("")
 
@@ -130,6 +132,7 @@ const AddNewLead = () => {
         priority: "Medium",
         status: "New",
       })
+       setIsPopupOpen(false);
     } catch (error) {
       console.error("Error adding lead:", error)
 
@@ -143,6 +146,9 @@ const AddNewLead = () => {
       setLoading(false)
     }
   }
+ const handleCancel = () => {
+    setIsPopupOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -452,43 +458,51 @@ const AddNewLead = () => {
               />
             </div>
 
-            {/* Submit Button */}
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setFormData({
-                    name: "",
-                    email: "",
-                    phone: "",
-                    company: "",
-                    address: "",
-                    city: "",
-                    state: "",
-                    zipCode: "",
-                    country: "",
-                    services: "",
-                    budget: "",
-                    timeline: "",
-                    source: "",
-                    notes: "",
-                    priority: "Medium",
-                    status: "New",
-                  })
-                }}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
-              >
-                Clear Form
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? "Adding Lead..." : "Add Lead"}
-              </button>
-            </div>
+<div className="flex justify-end space-x-4">
+  <button
+    type="button"
+    onClick={() => {
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        company: "",
+        address: "",
+        city: "",
+        state: "",
+        zipCode: "",
+        country: "",
+        services: "",
+        budget: "",
+        timeline: "",
+        source: "",
+        notes: "",
+        priority: "Medium",
+        status: "New",
+      })
+    }}
+    className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+  >
+    Clear Form
+  </button>
+  <button
+    type="button"
+    onClick={() => setIsPopupOpen(true)}
+    disabled={loading}
+    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+  >
+    {loading ? "Submiting..." : "Submit"}
+  </button>
+</div>
+        
           </form>
+      <Popup
+        isOpen={isPopupOpen}
+        onCancel={handleCancel}
+        onConfirm={async () => {
+          await handleSubmit({ preventDefault: () => {} });
+        }}
+      />
         </div>
       </div>
     </div>

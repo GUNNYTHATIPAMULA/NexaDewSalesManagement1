@@ -6,6 +6,7 @@ import { collection, getDocs, doc, updateDoc, getDoc } from "firebase/firestore"
 import { useAuthState } from "react-firebase-hooks/auth"
 import { auth } from "../firebase/firebase"
 import Header from "../components/Header/Header"
+import Popup from "../components/Popup/Popup"
 
 const ViewPipeLine = () => {
   const [user] = useAuthState(auth)
@@ -19,6 +20,13 @@ const ViewPipeLine = () => {
   const [userCompany, setUserCompany] = useState("")
   const [userRole, setUserRole] = useState("")
   const [error, setError] = useState("")
+
+  // Popup states
+  const [isContactPopupOpen, setIsContactPopupOpen] = useState(false)
+  const [isInterestPopupOpen, setIsInterestPopupOpen] = useState(false)
+  const [isWonPopupOpen, setIsWonPopupOpen] = useState(false)
+  const [isLostPopupOpen, setIsLostPopupOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState(null)
 
   useEffect(() => {
     const fetchUserCompanyAndLeads = async () => {
@@ -118,6 +126,54 @@ const ViewPipeLine = () => {
     }
   }
 
+  // Popup handlers
+  const handleContactClick = (leadId) => {
+    setSelectedLeadId(leadId)
+    setPendingAction({ leadId, status: "Contacted" })
+    setIsContactPopupOpen(true)
+  }
+
+  const handleInterestClick = (leadId) => {
+    setSelectedLeadId(leadId)
+    setPendingAction({ leadId, status: "Qualified" })
+    setIsInterestPopupOpen(true)
+  }
+
+  const handleWonClick = (leadId) => {
+    setSelectedLeadId(leadId)
+    setPendingAction({ leadId, status: "Won" })
+    setIsWonPopupOpen(true)
+  }
+
+  const handleLostClick = (leadId) => {
+    setSelectedLeadId(leadId)
+    setPendingAction({ leadId, status: "Lost" })
+    setIsLostPopupOpen(true)
+  }
+
+  const handlePopupConfirm = async (popupType) => {
+    if (pendingAction) {
+      await handleStatusChange(pendingAction.leadId, pendingAction.status)
+      setPendingAction(null)
+      setSelectedLeadId(null)
+    }
+
+    // Close all popups
+    setIsContactPopupOpen(false)
+    setIsInterestPopupOpen(false)
+    setIsWonPopupOpen(false)
+    setIsLostPopupOpen(false)
+  }
+
+  const handlePopupCancel = () => {
+    setPendingAction(null)
+    setSelectedLeadId(null)
+    setIsContactPopupOpen(false)
+    setIsInterestPopupOpen(false)
+    setIsWonPopupOpen(false)
+    setIsLostPopupOpen(false)
+  }
+
   const handleFollowUpClick = (leadId) => {
     setSelectedLeadId(leadId)
     setShowFollowUpModal(true)
@@ -184,7 +240,7 @@ const ViewPipeLine = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header/>
+      <Header />
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Sales Pipeline</h1>
@@ -276,6 +332,39 @@ const ViewPipeLine = () => {
             </div>
           </div>
         )}
+
+        {/* Confirmation Popups */}
+        <Popup
+          isOpen={isContactPopupOpen}
+          onCancel={handlePopupCancel}
+          onConfirm={() => handlePopupConfirm("contact")}
+          title="Confirm Contact"
+          message="Are you sure you want to mark this lead as contacted?"
+        />
+
+        <Popup
+          isOpen={isInterestPopupOpen}
+          onCancel={handlePopupCancel}
+          onConfirm={() => handlePopupConfirm("interest")}
+          title="Confirm Interest"
+          message="Are you sure you want to mark this lead as interested?"
+        />
+
+        <Popup
+          isOpen={isWonPopupOpen}
+          onCancel={handlePopupCancel}
+          onConfirm={() => handlePopupConfirm("won")}
+          title="Confirm Won"
+          message="Are you sure you want to mark this lead as won?"
+        />
+
+        <Popup
+          isOpen={isLostPopupOpen}
+          onCancel={handlePopupCancel}
+          onConfirm={() => handlePopupConfirm("lost")}
+          title="Confirm Lost"
+          message="Are you sure you want to mark this lead as lost?"
+        />
 
         {/* Leads Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -388,7 +477,7 @@ const ViewPipeLine = () => {
                       {lead.status === "New" ? (
                         <button
                           className="bg-blue-500 p-2 rounded-md text-white hover:bg-blue-600"
-                          onClick={() => handleStatusChange(lead.id, "Contacted")}
+                          onClick={() => handleContactClick(lead.id)}
                         >
                           Contact
                         </button>
@@ -396,13 +485,13 @@ const ViewPipeLine = () => {
                         <div className="flex gap-2">
                           <button
                             className="bg-purple-500 p-2 rounded-md text-white hover:bg-purple-600"
-                            onClick={() => handleStatusChange(lead.id, "Qualified")}
+                            onClick={() => handleInterestClick(lead.id)}
                           >
                             Interested
                           </button>
                           <button
                             className="bg-red-500 p-2 rounded-md text-white hover:bg-red-600"
-                            onClick={() => handleStatusChange(lead.id, "Lost")}
+                            onClick={() => handleLostClick(lead.id)}
                           >
                             Lost
                           </button>
@@ -417,13 +506,13 @@ const ViewPipeLine = () => {
                           </button>
                           <button
                             className="bg-green-500 p-2 rounded-md text-white hover:bg-green-600"
-                            onClick={() => handleStatusChange(lead.id, "Won")}
+                            onClick={() => handleWonClick(lead.id)}
                           >
                             Won
                           </button>
                           <button
                             className="bg-red-500 p-2 rounded-md text-white hover:bg-red-600"
-                            onClick={() => handleStatusChange(lead.id, "Lost")}
+                            onClick={() => handleLostClick(lead.id)}
                           >
                             Lost
                           </button>
