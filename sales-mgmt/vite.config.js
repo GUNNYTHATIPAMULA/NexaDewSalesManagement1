@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite"
 
 // https://vite.dev/config/
 export default defineConfig({
+
   plugins: [react(), tailwindcss()],
   base: "/",
   build: {
@@ -18,4 +19,5 @@ export default defineConfig({
   server: {
     historyApiFallback: true,
   },
+
 })
