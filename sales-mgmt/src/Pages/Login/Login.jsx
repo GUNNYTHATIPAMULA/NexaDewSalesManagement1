@@ -2,6 +2,9 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { doSignInWithEmailAndPassword, doSignInWithGoogle } from "../../firebase/auth"
+import { doc, getDoc } from "firebase/firestore"
+import { auth, db } from "../../firebase/firebase"
+import { signOut } from "firebase/auth"
 
 const Login = () => {
   const [email, setEmail] = useState("")
@@ -43,21 +46,42 @@ const Login = () => {
       setLoading(false)
     }
   }
+const handleGoogleSignIn = async () => {
+  setError("")
+  setGoogleLoading(true)
+  try {
+    const result = await doSignInWithGoogle()
+    const user = result.user
 
-  const handleGoogleSignIn = async () => {
-    setError("")
-    setGoogleLoading(true)
-    try {
-      const result = await doSignInWithGoogle()
-      console.log("Google sign-in successful:", result.user)
+    // Check if user email exists in any user collection
+    const collections = ["companyOwner", "marketingManager", "salesManager"]
+    let found = false
 
-    } catch (error) {
-      console.error("Error with Google sign-in:", error.message)
-      setError(error.message || "Failed to sign in with Google. Please try again.")
-    } finally {
-      setGoogleLoading(false)
+    for (const collectionName of collections) {
+      const userDoc = await getDoc(doc(db, collectionName, user.uid))
+      if (userDoc.exists()) {
+        found = true
+        break
+      }
     }
+
+    if (!found) {
+      await signOut(auth)
+      setError("This Google account is not registered. Please register first or use a different account.")
+      console.log(error)
+      return
+    }
+
+    console.log("Google sign-in successful:", user)
+    // Navigation will be handled by App.jsx based on user role
+
+  } catch (error) {
+    console.error("Error with Google sign-in:", error.message)
+    setError(error.message || "Failed to sign in with Google. Please try again.")
+  } finally {
+    setGoogleLoading(false)
   }
+}
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
@@ -98,6 +122,7 @@ const Login = () => {
             </svg>
             {googleLoading ? "Signing In..." : "Continue with Google"}
           </button>
+          
         </div>
 
         <div className="relative mb-6">

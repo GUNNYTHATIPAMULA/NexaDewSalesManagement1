@@ -1,5 +1,5 @@
 
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter  as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "./firebase/firebase";
@@ -18,6 +18,7 @@ import Settings from "./Pages/Settings";
 import ViewPipeLine from "./Pages/ViewPipeLine";
 import GenerateFormLink from "./Pages/GenerateFormLink";
 import PublicForm from "./Pages/PublicForm"; // New public form component
+import Suggestion from "./Pages/Suggestion";
 
 const App = () => {
   const [authUser, setAuthUser] = useState(null);
@@ -215,6 +216,25 @@ const App = () => {
                 canAccessRoute(["Company Owner","Marketing Manager"]) ? (
 
                   <GenerateFormLink />
+                ) : (
+                  <Navigate to={getDefaultRoute()} replace />
+                )
+              ) : (
+                <Navigate to="/role-selection" replace />
+              )
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+         <Route
+          path="/Suggestion"
+          element={
+            authUser ? (
+              userRole ? (
+                canAccessRoute(["Company Owner"]) ? (
+
+                  <Suggestion />
                 ) : (
                   <Navigate to={getDefaultRoute()} replace />
                 )

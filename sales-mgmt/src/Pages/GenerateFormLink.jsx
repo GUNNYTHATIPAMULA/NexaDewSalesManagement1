@@ -58,7 +58,7 @@ function GenerateFormLink() {
     if (!user) return
 
     // Generate a link with the user's UID so the form can identify the company
-    const newLink = `${window.location.origin}/share-form/${user.uid}`
+    const newLink = `https://nexa-dew-sales-management.vercel.app/share-form/${user.uid}`;
     setFormLink(newLink)
     setCopied(false)
   }

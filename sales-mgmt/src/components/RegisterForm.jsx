@@ -14,7 +14,11 @@ const RegisterForm = ({ role, successRedirect, accentColor, requireCompanyVerifi
     phone: "",
     companyName: "",
     password: "",
-  })
+    // Add these only for Company Owner
+    companyAddress: "",
+    companyWebsite: "",
+    companyIndustry: "",
+  });
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -73,15 +77,20 @@ const RegisterForm = ({ role, successRedirect, accentColor, requireCompanyVerifi
 
       const collectionName = getCollectionName(role)
 
-      const userData = {
-        name: formData.name || user.displayName || "Unknown",
-        email: formData.email || user.email,
-        phone: formData.phone || "",
-        companyName: formData.companyName.toLowerCase().trim(), // Ensure consistency
-        role: role,
-        uid: user.uid,
-        createdAt: new Date().toISOString(),
-      }
+  const userData = {
+  name: formData.name || user.displayName || "Unknown",
+  email: formData.email || user.email,
+  phone: formData.phone || "",
+  companyName: formData.companyName.toLowerCase().trim(),
+  role: role,
+  uid: user.uid,
+  createdAt: new Date().toISOString(),
+  ...(role === "Company Owner" && {
+    companyAddress: formData.companyAddress || "",
+    companyWebsite: formData.companyWebsite || "",
+    companyIndustry: formData.companyIndustry || "",
+  }),
+};
 
       console.log("Saving to collection:", collectionName)
       console.log("User data:", userData)
@@ -259,23 +268,50 @@ const RegisterForm = ({ role, successRedirect, accentColor, requireCompanyVerifi
             )}
           </div>
 
-          {["name", "phone", "email", "password"].map((field) => (
-            <div key={field}>
-              <label htmlFor={field} className="block text-sm font-medium text-gray-700 mb-1">
-                {field.charAt(0).toUpperCase() + field.slice(1)} {field !== "phone" ? "*" : ""}
-              </label>
-              <input
-                type={field === "password" ? "password" : field === "email" ? "email" : "text"}
-                id={field}
-                value={formData[field]}
-                onChange={handleInputChange}
-                className={`w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-${accentColor}-500 focus:border-transparent`}
-                required={field !== "phone"}
-                minLength={field === "password" ? 6 : undefined}
-                placeholder={`Enter your ${field}`}
-              />
-            </div>
-          ))}
+          {role === "Company Owner" && (
+            <>
+              {["name", "phone", "email", "password","companyAddress","companyWebsite","companyIndustry"].map((field) => (
+                <div key={field}>
+                  <label htmlFor={field} className="block text-sm font-medium text-gray-700 mb-1">
+                    {field.charAt(0).toUpperCase() + field.slice(1)} {field !== "phone" ? "*" : ""}
+                  </label>
+                  <input
+                    type={field === "password" ? "password" : field === "email" ? "email" : "text"}
+                    id={field}
+                    value={formData[field]}
+                    onChange={handleInputChange}
+                    className={`w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-${accentColor}-500 focus:border-transparent`}
+                    required={field !== "phone"}
+                    minLength={field === "password" ? 6 : undefined}
+                    placeholder={`Enter your ${field}`}
+                  />
+                </div>
+              ))}
+            </>
+          )}
+
+          {role !== "Company Owner" && (
+            <>
+              {/* Only show email and password for non-owner roles */}
+              {["name", "phone","email", "password",].map((field) => (
+                <div key={field}>
+                  <label htmlFor={field} className="block text-sm font-medium text-gray-700 mb-1">
+                    {field.charAt(0).toUpperCase() + field.slice(1)} *
+                  </label>
+                  <input
+                    type={field  === "password" ? "password" : field === "email" ? "email" : "text"}
+                    id={field}
+                    value={formData[field]}
+                    onChange={handleInputChange}
+                    className={`w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-${accentColor}-500 focus:border-transparent`}
+                    required
+                    minLength={field === "password" ? 6 : undefined}
+                    placeholder={`Enter your ${field}`}
+                  />
+                </div>
+              ))}
+            </>
+          )}
 
           <button
             type="submit"
