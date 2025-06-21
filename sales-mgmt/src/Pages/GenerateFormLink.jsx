@@ -40,7 +40,7 @@ function GenerateFormLink() {
         if (role) {
           setUserRole(role)
         } else {
-          setError("Access denied. Only company owners and sales managers can generate form links.")
+          setError("Access denied. Only company owners and marketing managers can generate form links.")
           setTimeout(() => navigate("/"), 3000)
         }
       } catch (error) {
@@ -57,8 +57,9 @@ function GenerateFormLink() {
   const generateLink = () => {
     if (!user) return
 
-    // Generate a link with the user's UID so the form can identify the company
-    const newLink = `https://nexa-dew-sales-management.vercel.app/share-form/${user.uid}`;
+    // Get the current domain
+    const currentDomain = window.location.origin
+    const newLink = `${currentDomain}/#/share-form/${user.uid}`
     setFormLink(newLink)
     setCopied(false)
   }
@@ -197,5 +198,5 @@ function GenerateFormLink() {
     </div>
   )
 }
-export default GenerateFormLink
 
+export default GenerateFormLink

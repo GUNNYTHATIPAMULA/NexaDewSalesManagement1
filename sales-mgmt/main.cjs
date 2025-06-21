@@ -1,37 +1,72 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, shell, protocol } = require('electron');
 const path = require('path');
-const url = require('url');
+const { readFile } = require('fs');
+const { URL } = require('url');
+
+let mainWindow;
 
 function createWindow() {
-  const win = new BrowserWindow({
-    width: 800,
-    height: 600,
+  // Create the browser window
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
     webPreferences: {
+      nodeIntegration: false,
       contextIsolation: true,
-      nodeIntegration: false
-    }
+      enableRemoteModule: false,
+      webSecurity: false, // Temporarily disable for local files
+      allowRunningInsecureContent: true
+    },
+    show: false,
+    titleBarStyle: 'default'
   });
 
-  // Load the index.html from the dist folder
-  win.loadURL(
-    url.format({
-      pathname: path.join(__dirname, 'dist', 'index.html'),
-      protocol: 'file:',
-      slashes: true
-    })
-  );
+  // Load the built React app
+  const indexPath = path.join(__dirname, 'dist', 'index.html');
+  console.log('Loading from:', indexPath);
+  
+  mainWindow.loadFile(indexPath).catch(err => {
+    console.error('Failed to load file:', err);
+  });
+
+  // Show window when ready
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
 
   // Open DevTools for debugging
-  win.webContents.openDevTools();
+  mainWindow.webContents.openDevTools();
+
+  // Handle window closed
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  // Handle external links
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
+  // Log any console errors
+  mainWindow.webContents.on('console-message', (event, level, message) => {
+    console.log('Renderer console:', message);
+  });
 }
 
-app.whenReady().then(createWindow);
+// Register file protocol before app is ready
+app.whenReady().then(() => {
+  createWindow();
+});
 
-// Quit when all windows are closed (except on macOS)
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
 });
