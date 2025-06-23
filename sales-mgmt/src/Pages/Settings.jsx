@@ -1,9 +1,10 @@
 "use client"
 import { useState, useEffect } from "react"
 import { db, auth } from "../firebase/firebase"
-import { collection, getDocs, query, doc, updateDoc, where, getDoc, setDoc, deleteDoc } from "firebase/firestore" // Added deleteDoc
+import { collection, getDocs, query, doc, updateDoc, where, getDoc, setDoc, deleteDoc } from "firebase/firestore"
 import Header from "../components/Header/Header"
 
+import { deleteUser } from "firebase/auth"; // Add this import at the top
 const Settings = () => {
   const [activeTab, setActiveTab] = useState("Business Info")
   const [employees, setEmployees] = useState([])
@@ -20,6 +21,9 @@ const Settings = () => {
   const [userRole, setUserRole] = useState(null)
   const [userCompany, setUserCompany] = useState("")
   const [updateLoading, setUpdateLoading] = useState(false)
+  const [businessInfoLoading, setBusinessInfoLoading] = useState(false)
+  const [ownerInfo, setOwnerInfo] = useState(null)
+  const [editingOwner, setEditingOwner] = useState(false)
 
   // Business Info states
   const [businessInfo, setBusinessInfo] = useState({
@@ -32,7 +36,21 @@ const Settings = () => {
     foundedYear: "",
     employeeCount: "",
   })
-  const [businessInfoLoading, setBusinessInfoLoading] = useState(false)
+
+  const fetchCompanyOwnerInfo = async (companyName) => {
+    try {
+      const q = query(collection(db, "companyOwner"), where("companyName", "==", companyName))
+      const snapshot = await getDocs(q)
+      if (!snapshot.empty) {
+        setOwnerInfo(snapshot.docs[0].data())
+      } else {
+        setOwnerInfo(null)
+      }
+    } catch (error) {
+      console.error("Error fetching company owner info:", error)
+      setOwnerInfo(null)
+    }
+  }
 
   useEffect(() => {
     fetchUserDataAndEmployees()
@@ -40,20 +58,17 @@ const Settings = () => {
 
   const determineUserRole = async (userId) => {
     try {
-      // Check if user is a company owner
       const ownerDoc = await getDoc(doc(db, "companyOwner", userId))
       if (ownerDoc.exists()) {
         return { role: "Company Owner", data: ownerDoc.data() }
       }
 
-      // Check if user is a marketing manager
       const marketingQuery = query(collection(db, "marketingManager"), where("uid", "==", userId))
       const marketingSnapshot = await getDocs(marketingQuery)
       if (!marketingSnapshot.empty) {
         return { role: "Marketing Manager", data: marketingSnapshot.docs[0].data() }
       }
 
-      // Check if user is a sales manager
       const salesQuery = query(collection(db, "salesManager"), where("uid", "==", userId))
       const salesSnapshot = await getDocs(salesQuery)
       if (!salesSnapshot.empty) {
@@ -85,11 +100,7 @@ const Settings = () => {
 
       const companyName = data.companyName.toLowerCase()
       setUserCompany(companyName)
-
-      // Fetch business info
-      await fetchBusinessInfo(companyName)
-
-      // Fetch employees based on company name
+      await fetchCompanyOwnerInfo(companyName)
       await fetchEmployeesByCompany(companyName)
     } catch (error) {
       console.error("Error fetching user data:", error)
@@ -98,14 +109,42 @@ const Settings = () => {
       setLoading(false)
     }
   }
+
+  const handleDeleteEmployee = async (employeeId, collectionName) => {
+    if (!window.confirm("Are you sure you want to delete this employee? This action cannot be undone.")) return;
+    try {
+      setUpdateLoading(true);
+      setError(null);
+
+      // Get the employee's Firestore document to retrieve their UID/email
+      const employeeDoc = await getDoc(doc(db, collectionName, employeeId));
+      const employeeData = employeeDoc.exists() ? employeeDoc.data() : null;
+
+      // Delete from Firestore
+      await deleteDoc(doc(db, collectionName, employeeId));
+
+      // Try to delete from Auth if the employee is the currently logged-in user
+      if (auth.currentUser && employeeData && employeeData.email === auth.currentUser.email) {
+        await deleteUser(auth.currentUser);
+        setSuccess("Employee and authentication account deleted successfully!");
+        // Optionally, redirect to login or home after self-deletion
+      } else {
+        setSuccess("Employee deleted from database. (Auth account can only be deleted by the user themselves or by an admin function.)");
+      }
+
+      await fetchEmployeesByCompany(userCompany);
+    } catch (error) {
+      console.error("Error deleting employee:", error);
+      setError("Failed to delete employee: " + error.message);
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
   const fetchEmployeesByCompany = async (companyName) => {
     try {
       const employeesList = []
-
-      // Convert to lowercase to match database values
       const lowerCompanyName = companyName.toLowerCase()
 
-      // Get all marketing managers in the same company
       const marketingQuery = query(collection(db, "marketingManager"), where("companyName", "==", lowerCompanyName))
       const marketingSnapshot = await getDocs(marketingQuery)
       marketingSnapshot.forEach((doc) => {
@@ -117,7 +156,6 @@ const Settings = () => {
         })
       })
 
-      // Get all sales managers in the same company
       const salesQuery = query(collection(db, "salesManager"), where("companyName", "==", lowerCompanyName))
       const salesSnapshot = await getDocs(salesQuery)
       salesSnapshot.forEach((doc) => {
@@ -144,13 +182,31 @@ const Settings = () => {
       if (businessDoc.exists()) {
         setBusinessInfo({ ...businessInfo, ...businessDoc.data() })
       } else {
-        // Initialize with company name if no business info exists
         setBusinessInfo((prev) => ({ ...prev, companyName: lowerCompanyName }))
       }
     } catch (error) {
       console.error("Error fetching business info:", error)
     }
   }
+  const updateLeadsCompanyName = async (oldCompanyName, newCompanyName) => {
+    try {
+      const leadsQuery = query(
+        collection(db, "leads"),
+        where("submittedLead", "==", oldCompanyName)
+      );
+      const leadsSnapshot = await getDocs(leadsQuery);
+      const updatePromises = [];
+      leadsSnapshot.forEach((docSnap) => {
+        updatePromises.push(
+          updateDoc(doc(db, "leads", docSnap.id), { submittedLead: newCompanyName })
+        );
+      });
+      await Promise.all(updatePromises);
+      console.log(`Updated submittedLead in leads from "${oldCompanyName}" to "${newCompanyName}"`);
+    } catch (error) {
+      console.error("Error updating leads submittedLead:", error);
+    }
+  };
 
   const handleEditClick = (employee) => {
     setEditingEmployeeId(employee.id)
@@ -203,33 +259,28 @@ const Settings = () => {
       const employeeRef = doc(db, collectionName, employeeId)
       const currentEmployee = employees.find((e) => e.id === employeeId)
 
-      // Update the existing document
       await updateDoc(employeeRef, {
         name: editFormData.name.trim(),
         email: editFormData.email.trim(),
         phone: editFormData.phone.trim(),
       })
 
-      // Handle role change
       if (editFormData.role && editFormData.role !== currentEmployee.role) {
         const newCollection = editFormData.role === "Marketing Manager" ? "marketingManager" : "salesManager"
         if (newCollection !== collectionName) {
-          // Move to new collection
           const newEmployeeData = {
             ...editFormData,
             companyName: userCompany,
-            uid: employeeId, // Assuming uid is the document ID
+            uid: employeeId,
           }
           await setDoc(doc(db, newCollection, employeeId), newEmployeeData)
-          await deleteDoc(employeeRef) // Remove from old collection
+          await deleteDoc(employeeRef)
         }
       }
 
       setSuccess("Employee updated successfully!")
       setEditingEmployeeId(null)
       setEditFormData({ name: "", email: "", phone: "", role: "" })
-
-      // Refresh employee list
       await fetchEmployeesByCompany(userCompany)
     } catch (error) {
       console.error("Error updating employee:", error)
@@ -253,6 +304,13 @@ const Settings = () => {
     }))
   }
 
+  const handleOwnerInfoChange = (field, value) => {
+    setOwnerInfo((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
   const handleBusinessInfoSubmit = async (e) => {
     e.preventDefault()
     setBusinessInfoLoading(true)
@@ -260,7 +318,6 @@ const Settings = () => {
     setSuccess(null)
 
     try {
-      // Save business info using company name as document ID
       await setDoc(doc(db, "businessInfo", userCompany), businessInfo)
       setSuccess("Business information saved successfully!")
     } catch (error) {
@@ -271,133 +328,341 @@ const Settings = () => {
     }
   }
 
+  const handleOwnerInfoSubmit = async (e) => {
+    e.preventDefault()
+    setBusinessInfoLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const userId = auth.currentUser.uid
+      const oldCompanyName = userCompany // Store the old company name for employee updates
+      const newOwnerData = {
+        ...ownerInfo, // Preserve all existing fields
+        uid: userId,
+        companyName: ownerInfo.companyName.toLowerCase(),
+      }
+
+      // Update the companyOwner document
+      await setDoc(doc(db, "companyOwner", userId), newOwnerData, { merge: true })
+
+      // Update employees' companyName if it has changed
+      if (oldCompanyName !== newOwnerData.companyName.toLowerCase()) {
+        await updateEmployeeCompanyName(oldCompanyName, newOwnerData.companyName.toLowerCase())
+        // Update leads' submittedLead if company name changed
+        await updateLeadsCompanyName(oldCompanyName, newOwnerData.companyName.toLowerCase())
+      }
+
+      setSuccess("Company owner information saved successfully!")
+      setEditingOwner(false)
+      setUserCompany(newOwnerData.companyName.toLowerCase()) // Update userCompany state
+      await fetchCompanyOwnerInfo(newOwnerData.companyName.toLowerCase()) // Refresh with new data
+      await fetchUserDataAndEmployees() // Refresh employee list
+    } catch (error) {
+      console.error("Error saving owner info:", error)
+      setError("Failed to save company owner information: " + error.message)
+    } finally {
+      setBusinessInfoLoading(false)
+    }
+  }
+
+  const updateEmployeeCompanyName = async (oldCompanyName, newCompanyName) => {
+    try {
+      const lowerOldCompanyName = oldCompanyName.toLowerCase()
+      const lowerNewCompanyName = newCompanyName.toLowerCase()
+
+      const marketingQuery = query(collection(db, "marketingManager"), where("companyName", "==", lowerOldCompanyName))
+      const salesQuery = query(collection(db, "salesManager"), where("companyName", "==", lowerOldCompanyName))
+
+      const [marketingSnapshot, salesSnapshot] = await Promise.all([
+        getDocs(marketingQuery),
+        getDocs(salesQuery),
+      ])
+
+      const updatePromises = []
+      marketingSnapshot.forEach((docSnap) => {
+        updatePromises.push(updateDoc(doc(db, "marketingManager", docSnap.id), { companyName: lowerNewCompanyName }))
+      })
+      salesSnapshot.forEach((docSnap) => {
+        updatePromises.push(updateDoc(doc(db, "salesManager", docSnap.id), { companyName: lowerNewCompanyName }))
+      })
+
+      await Promise.all(updatePromises)
+      console.log(`Updated company name for all employees from ${lowerOldCompanyName} to ${lowerNewCompanyName}`)
+    } catch (error) {
+      console.error("Error updating employee company names:", error)
+    }
+  }
+
+  const handleEditOwnerClick = () => {
+    setEditingOwner(true)
+    setOwnerInfo({
+      ...ownerInfo, // Preserve existing data
+      name: ownerInfo?.name || "",
+      email: ownerInfo?.email || "",
+      phone: ownerInfo?.phone || "",
+      companyAddress: ownerInfo?.companyAddress || "",
+      companyWebsite: ownerInfo?.companyWebsite || "",
+      companyIndustry: ownerInfo?.companyIndustry || "",
+      companyName: ownerInfo?.companyName || userCompany,
+    })
+  }
+
+  const handleCancelOwnerEdit = () => {
+    setEditingOwner(false)
+    fetchCompanyOwnerInfo(userCompany) // Re-fetch to reset to original data
+  }
+
   const tabs = ["Business Info", "Notification Preferences", "Employee Details"]
 
   const renderTabContent = () => {
     switch (activeTab) {
       case "Business Info":
         return (
-          <div className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Business Information</h2>
-            {error && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
-            )}
-            {success && (
+          <>
+           {success && (
               <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
                 {success}
               </div>
             )}
-
-            <form onSubmit={handleBusinessInfoSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Company Name</label>
-                  <input
-                    type="text"
-                    value={businessInfo.companyName}
-                    onChange={(e) => handleBusinessInfoChange("companyName", e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Industry</label>
-                  <input
-                    type="text"
-                    value={businessInfo.industry}
-                    onChange={(e) => handleBusinessInfoChange("industry", e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., Technology, Healthcare, Finance"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                  <input
-                    type="tel"
-                    value={businessInfo.phone}
-                    onChange={(e) => handleBusinessInfoChange("phone", e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Website</label>
-                  <input
-                    type="url"
-                    value={businessInfo.website}
-                    onChange={(e) => handleBusinessInfoChange("website", e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="https://www.example.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Founded Year</label>
-                  <input
-                    type="number"
-                    value={businessInfo.foundedYear}
-                    onChange={(e) => handleBusinessInfoChange("foundedYear", e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    min="1800"
-                    max={new Date().getFullYear()}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Employee Count</label>
-                  <select
-                    value={businessInfo.employeeCount}
-                    onChange={(e) => handleBusinessInfoChange("employeeCount", e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            {ownerInfo ? (
+              editingOwner ? (
+                <form onSubmit={handleOwnerInfoSubmit} className="p-6 space-y-6">
+                  <h2 className="text-xl font-semibold mb-4">Edit Company Owner Information</h2>
+                  {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
+                  {success && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">{success}</div>}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={ownerInfo.name || ""}
+                        onChange={(e) => handleOwnerInfoChange("name", e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={ownerInfo.email || ""}
+                        onChange={(e) => handleOwnerInfoChange("email", e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                      <input
+                        type="tel"
+                        value={ownerInfo.phone || ""}
+                        onChange={(e) => handleOwnerInfoChange("phone", e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                      <input
+                        type="text"
+                        value={ownerInfo.companyName || ""}
+                        onChange={(e) => handleOwnerInfoChange("companyName", e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                      <input
+                        type="text"
+                        value={ownerInfo.companyAddress || ""}
+                        onChange={(e) => handleOwnerInfoChange("companyAddress", e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                      <input
+                        type="url"
+                        value={ownerInfo.companyWebsite || ""}
+                        onChange={(e) => handleOwnerInfoChange("companyWebsite", e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+                      <input
+                        type="text"
+                        value={ownerInfo.companyIndustry || ""}
+                        onChange={(e) => handleOwnerInfoChange("companyIndustry", e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={businessInfoLoading}
+                      className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50"
+                    >
+                      {businessInfoLoading ? "Saving..." : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelOwnerEdit}
+                      className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="p-6">
+                  <h2 className="text-xl font-semibold mb-4">Company Owner Information</h2>
+                  <div className="mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <span className="font-medium text-gray-700">Name:</span>
+                        <span className="ml-2 text-gray-900">{ownerInfo.name || "N/A"}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Email:</span>
+                        <span className="ml-2 text-gray-900">{ownerInfo.email || "N/A"}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Phone:</span>
+                        <span className="ml-2 text-gray-900">{ownerInfo.phone || "N/A"}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Company Name:</span>
+                        <span className="ml-2 text-gray-900">{ownerInfo.companyName || "N/A"}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Address:</span>
+                        <span className="ml-2 text-gray-900">{ownerInfo.companyAddress || "N/A"}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Website:</span>
+                        <span className="ml-2 text-gray-900">{ownerInfo.companyWebsite || "N/A"}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Industry:</span>
+                        <span className="ml-2 text-gray-900">{ownerInfo.companyIndustry || "N/A"}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleEditOwnerClick}
+                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
                   >
-                    <option value="">Select employee count</option>
-                    <option value="1-10">1-10 employees</option>
-                    <option value="11-50">11-50 employees</option>
-                    <option value="51-200">51-200 employees</option>
-                    <option value="201-500">201-500 employees</option>
-                    <option value="500+">500+ employees</option>
-                  </select>
+                    Edit
+                  </button>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Business Address</label>
-                <textarea
-                  value={businessInfo.address}
-                  onChange={(e) => handleBusinessInfoChange("address", e.target.value)}
-                  rows={3}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter your complete business address"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Company Description</label>
-                <textarea
-                  value={businessInfo.description}
-                  onChange={(e) => handleBusinessInfoChange("description", e.target.value)}
-                  rows={4}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Describe your company, its mission, and what you do"
-                />
-              </div>
-
-              <div className="flex justify-end">
+              )
+            ) : (
+              <div className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Company Owner Information</h2>
+                <p className="text-gray-600 mb-4">No company owner data found.</p>
                 <button
-                  type="submit"
-                  disabled={businessInfoLoading}
-                  className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  onClick={() => setEditingOwner(true)}
+                  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
                 >
-                  {businessInfoLoading && (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  )}
-                  {businessInfoLoading ? "Saving..." : "Save Business Information"}
+                  Add Data
                 </button>
+                {editingOwner && (
+                  <form onSubmit={handleOwnerInfoSubmit} className="mt-6 space-y-6">
+                    <h3 className="text-lg font-semibold mb-2">Add Company Owner Information</h3>
+                    {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
+                    {success && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">{success}</div>}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <input
+                          type="text"
+                          value={ownerInfo?.name || ""}
+                          onChange={(e) => handleOwnerInfoChange("name", e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input
+                          type="email"
+                          value={ownerInfo?.email || ""}
+                          onChange={(e) => handleOwnerInfoChange("email", e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                        <input
+                          type="tel"
+                          value={ownerInfo?.phone || ""}
+                          onChange={(e) => handleOwnerInfoChange("phone", e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                        <input
+                          type="text"
+                          value={ownerInfo?.companyName || ""}
+                          onChange={(e) => handleOwnerInfoChange("companyName", e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                        <input
+                          type="text"
+                          value={ownerInfo?.companyAddress || ""}
+                          onChange={(e) => handleOwnerInfoChange("companyAddress", e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                        <input
+                          type="url"
+                          value={ownerInfo?.companyWebsite || ""}
+                          onChange={(e) => handleOwnerInfoChange("companyWebsite", e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+                        <input
+                          type="text"
+                          value={ownerInfo?.companyIndustry || ""}
+                          onChange={(e) => handleOwnerInfoChange("companyIndustry", e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={businessInfoLoading}
+                        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50"
+                      >
+                        {businessInfoLoading ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingOwner(false)}
+                        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
-            </form>
-          </div>
+            )}
+          </>
         )
 
       case "Notification Preferences":
@@ -433,12 +698,6 @@ const Settings = () => {
 
             {error && (
               <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
-            )}
-
-            {success && (
-              <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                {success}
-              </div>
             )}
             {loading ? (
               <div className="flex items-center justify-center py-8">
@@ -530,11 +789,10 @@ const Settings = () => {
                               </select>
                             ) : (
                               <span
-                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  employee.role === "Marketing Manager"
+                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${employee.role === "Marketing Manager"
                                     ? "bg-purple-100 text-purple-800"
                                     : "bg-green-100 text-green-800"
-                                }`}
+                                  }`}
                               >
                                 {employee.role || "N/A"}
                               </span>
@@ -562,12 +820,21 @@ const Settings = () => {
                                 </button>
                               </div>
                             ) : (
-                              <button
-                                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors"
-                                onClick={() => handleEditClick(employee)}
-                              >
-                                Edit
-                              </button>
+                              <div className="flex gap-2">
+                                <button
+                                  className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors"
+                                  onClick={() => handleEditClick(employee)}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors"
+                                  onClick={() => handleDeleteEmployee(employee.id, employee.collection)}
+                                  disabled={updateLoading}
+                                >
+                                  Delete
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -593,8 +860,7 @@ const Settings = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header/>
-      {/* Header component would go here */}
+      <Header />
       <div className="max-w-7xl mx-auto p-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Settings</h1>
         <div className="mb-6">
@@ -602,11 +868,10 @@ const Settings = () => {
             {tabs.map((tab) => (
               <li
                 key={tab}
-                className={`pb-2 cursor-pointer transition-colors ${
-                  activeTab === tab
+                className={`pb-2 cursor-pointer transition-colors ${activeTab === tab
                     ? "border-b-2 border-blue-500 text-blue-500 font-semibold"
                     : "text-gray-600 hover:text-gray-900"
-                }`}
+                  }`}
                 onClick={() => setActiveTab(tab)}
               >
                 {tab}

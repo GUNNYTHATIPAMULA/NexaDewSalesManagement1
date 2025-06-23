@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Company Owner collection
+    match /companyOwner/{userId} {
+      allow read: if true; // Public read for verification
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Marketing Manager collection
+    match /marketingManager/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && (
+        request.auth.uid == userId || // Allow self-edits
+        exists(/databases/$(database)/documents/companyOwner/$(request.auth.uid)) // Allow Company Owner
+      );
+    }
+
+    // Sales Manager collection
+    match /salesManager/{userId} {
+      allow read: if true; // Public read for verification
+      allow write: if request.auth != null && (
+        request.auth.uid == userId || // Allow self-edits
+        exists(/databases/$(database)/documents/companyOwner/$(request.auth.uid)) // Allow Company Owner
+      );
+    }
+
+    // Leads collection
+    match /leads/{leadId} {
+      allow create: if true; // Allow public creation via forms
+      allow read: if request.auth != null && (
+        exists(/databases/$(database)/documents/companyOwner/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/marketingManager/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/salesManager/$(request.auth.uid))
+      );
+      allow update: if request.auth != null && (
+        exists(/databases/$(database)/documents/companyOwner/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/marketingManager/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/salesManager/$(request.auth.uid))
+      );
+      allow delete: if false; // Prevent deletion
+    }
+
+    // Business Info collection
+    match /businessInfo/{companyId} {
+      allow read: if true;
+      allow write: if request.auth != null && (
+        exists(/databases/$(database)/documents/companyOwner/$(request.auth.uid))
+      );
+    }
+  }
+}
