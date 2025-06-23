@@ -134,7 +134,6 @@ const Suggestion = () => {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label htmlFor="userName" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                        
                         User Name *
                       </label>
                       <input
@@ -298,7 +297,7 @@ const Suggestion = () => {
                       </>
                     ) : (
                       <>
-]                        Submit Suggestion
+                        Submit Suggestion
                       </>
                     )}
                   </button>
@@ -350,11 +349,10 @@ const Suggestion = () => {
                   {categories.map((cat) => (
                     <div
                       key={cat.value}
-                      className={`px-3 py-2 rounded-md text-xs border transition-colors ${
-                        formData.category === cat.value
+                      className={`px-3 py-2 rounded-md text-xs border transition-colors ${formData.category === cat.value
                           ? "bg-blue-100 text-blue-800 border-blue-200"
                           : "bg-gray-100 text-gray-800 border-gray-200"
-                      }`}
+                        }`}
                     >
                       {cat.icon} {cat.label}
                       {cat.value === "other" && (
