@@ -4,19 +4,6 @@ import { useState } from "react"
 import { collection, addDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "../firebase/firebase"
 import Header from "../components/Header/Header"
-import {
-  Loader2,
-  Send,
-  CheckCircle,
-  AlertCircle,
-  Lightbulb,
-  Building,
-  User,
-  Mail,
-  MessageSquare,
-  Tag,
-  Edit3,
-} from "lucide-react"
 
 const Suggestion = () => {
   const [formData, setFormData] = useState({
@@ -121,7 +108,6 @@ const Suggestion = () => {
         {/* Hero Section */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mb-4">
-            <Lightbulb className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Share Your Ideas</h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
@@ -136,7 +122,6 @@ const Suggestion = () => {
               {/* Header */}
               <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6">
                 <h2 className="flex items-center gap-2 text-xl font-semibold">
-                  <Send className="h-5 w-5" />
                   Submit Your Suggestion
                 </h2>
                 <p className="text-blue-100 mt-1">Fill out the form below to share your thoughts with us</p>
@@ -149,7 +134,7 @@ const Suggestion = () => {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label htmlFor="userName" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                        <User className="h-4 w-4" />
+                        
                         User Name *
                       </label>
                       <input
@@ -169,7 +154,6 @@ const Suggestion = () => {
                         htmlFor="companyName"
                         className="flex items-center gap-2 text-sm font-medium text-gray-700"
                       >
-                        <Building className="h-4 w-4" />
                         Company Name *
                       </label>
                       <input
@@ -188,7 +172,6 @@ const Suggestion = () => {
                   {/* Email */}
                   <div className="space-y-2">
                     <label htmlFor="email" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                      <Mail className="h-4 w-4" />
                       Email (Optional)
                     </label>
                     <input
@@ -206,7 +189,6 @@ const Suggestion = () => {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <label htmlFor="category" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                        <Tag className="h-4 w-4" />
                         Category *
                       </label>
                       <select
@@ -232,7 +214,6 @@ const Suggestion = () => {
                           htmlFor="othercategory"
                           className="flex items-center gap-2 text-sm font-medium text-gray-700"
                         >
-                          <Edit3 className="h-4 w-4" />
                           Please specify the category *
                         </label>
                         <input
@@ -246,7 +227,6 @@ const Suggestion = () => {
                           required
                         />
                         <p className="text-xs text-blue-600 flex items-center gap-1">
-                          <Lightbulb className="h-3 w-3" />
                           Help us understand your suggestion better by specifying the category
                         </p>
                       </div>
@@ -256,7 +236,6 @@ const Suggestion = () => {
                   {/* Subject */}
                   <div className="space-y-2">
                     <label htmlFor="subject" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                      <MessageSquare className="h-4 w-4" />
                       Subject
                     </label>
                     <input
@@ -273,7 +252,6 @@ const Suggestion = () => {
                   {/* Suggestion */}
                   <div className="space-y-2">
                     <label htmlFor="suggestion" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                      <Lightbulb className="h-4 w-4" />
                       Your Suggestion *
                     </label>
                     <textarea
@@ -292,7 +270,6 @@ const Suggestion = () => {
                   {submitStatus === "success" && (
                     <div className="border border-green-200 bg-green-50 rounded-md p-4">
                       <div className="flex items-center">
-                        <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
                         <p className="text-green-800">
                           🎉 Thank you! Your suggestion has been submitted successfully. We'll review it and get back to
                           you soon.
@@ -304,7 +281,6 @@ const Suggestion = () => {
                   {submitStatus === "error" && (
                     <div className="border border-red-200 bg-red-50 rounded-md p-4">
                       <div className="flex items-center">
-                        <AlertCircle className="h-4 w-4 text-red-600 mr-2" />
                         <p className="text-red-800">{errorMessage}</p>
                       </div>
                     </div>
@@ -318,13 +294,11 @@ const Suggestion = () => {
                   >
                     {isSubmitting ? (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Submitting Your Suggestion...
                       </>
                     ) : (
                       <>
-                        <Send className="mr-2 h-4 w-4" />
-                        Submit Suggestion
+]                        Submit Suggestion
                       </>
                     )}
                   </button>
@@ -339,7 +313,6 @@ const Suggestion = () => {
             <div className="bg-white rounded-lg shadow-lg border-0 backdrop-blur-sm overflow-hidden">
               <div className="p-6">
                 <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
-                  <Lightbulb className="h-5 w-5 text-yellow-500" />
                   Tips for Great Suggestions
                 </h3>
                 <div className="space-y-3">
