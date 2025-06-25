@@ -2,7 +2,7 @@
 
 import { HashRouter as Router, Routes, Route, Navigate } from "react-router-dom"
 import { useEffect, useState } from "react"
-import { onAuthStateChanged } from "firebase/auth"
+import { onAuthStateChanged, signOut } from "firebase/auth"
 import { auth, db } from "./firebase/firebase"
 import { doc, getDoc } from "firebase/firestore"
 
@@ -25,6 +25,30 @@ const App = () => {
   const [authUser, setAuthUser] = useState(null)
   const [userRole, setUserRole] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [logoutTimer, setLogoutTimer] = useState(null)
+
+  // Clear the logout timer
+  const clearLogoutTimer = () => {
+    if (logoutTimer) {
+      clearTimeout(logoutTimer)
+      setLogoutTimer(null)
+    }
+  }
+
+  // Set up the 2-hour logout timer
+  const setupLogoutTimer = () => {
+    clearLogoutTimer() // Clear any existing timer
+    
+    const timer = setTimeout(() => {
+      signOut(auth).then(() => {
+        console.log('Automatically logged out after 2 hours')
+      }).catch((error) => {
+        console.error('Logout error:', error)
+      })
+    },  2 * 60 * 60 * 1000) // 2 hours in milliseconds
+    
+    setLogoutTimer(timer)
+  }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -43,18 +67,23 @@ const App = () => {
 
           setUserRole(userData?.role || null)
           setAuthUser(user)
+          setupLogoutTimer() // Start the timer when user logs in
         } catch (error) {
           console.error("Error fetching user data:", error)
           setUserRole(null)
         }
       } else {
+        clearLogoutTimer() // Clear timer when user logs out
         setAuthUser(null)
         setUserRole(null)
       }
       setLoading(false)
     })
 
-    return () => unsubscribe()
+    return () => {
+      unsubscribe()
+      clearLogoutTimer() // Clean up timer on component unmount
+    }
   }, [])
 
   if (loading) {
@@ -97,7 +126,7 @@ const App = () => {
         <Route path="/sales-manager/register" element={<SalesManagerRegister />} />
         <Route path="/company-owner/register" element={<CompanyOwnerRegister />} />
 
-        {/* Public form route - This is the key route that needs to work */}
+        {/* Public form route */}
         <Route path="/share-form/:uid" element={<PublicForm />} />
 
         <Route

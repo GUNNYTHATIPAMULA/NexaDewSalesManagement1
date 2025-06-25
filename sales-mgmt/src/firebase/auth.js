@@ -8,6 +8,7 @@ import {
   GoogleAuthProvider,
 } from "firebase/auth"
 import { auth } from "./firebase"
+import { sendPasswordResetEmail } from "firebase/auth"
 
 // Configure Google Auth Provider with proper settings
 const googleProvider = new GoogleAuthProvider()
@@ -73,4 +74,13 @@ export const handleRedirectResult = async () => {
 
 export const doSignOut = () => {
   return signOut(auth)
+}
+export const doPasswordReset = async (email) => {
+  try {
+    await sendPasswordResetEmail(auth, email)
+    return true
+  } catch (error) {
+    console.error("Password reset error:", error)
+    throw error
+  }
 }

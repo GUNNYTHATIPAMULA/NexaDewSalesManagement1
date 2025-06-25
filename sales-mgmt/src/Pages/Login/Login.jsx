@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { doSignInWithEmailAndPassword, doSignInWithGoogle, handleRedirectResult } from "../../firebase/auth"
+import { doSignInWithEmailAndPassword, doSignInWithGoogle, handleRedirectResult, doPasswordReset } from "../../firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 import { auth, db } from "../../firebase/firebase"
 import { signOut } from "firebase/auth"
@@ -13,6 +13,10 @@ const Login = () => {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetStatus, setResetStatus] = useState(null) // 'success', 'error', null
+  const [resetLoading, setResetLoading] = useState(false)
   const navigate = useNavigate()
 
   // Check for redirect result on component mount (for Electron)
@@ -108,11 +112,108 @@ const Login = () => {
     }
   }
 
+  const handleForgotPassword = () => {
+    setResetEmail(email) // Pre-fill with the email they may have entered
+    setShowResetModal(true)
+    setResetStatus(null)
+    setError("")
+  }
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault()
+    if (!resetEmail) {
+      setResetStatus('error')
+      setError('Please enter your email address')
+      return
+    }
+
+    setResetLoading(true)
+    try {
+      await doPasswordReset(resetEmail)
+      setResetStatus('success')
+      setError('')
+    } catch (error) {
+      console.error("Password reset error:", error)
+      setResetStatus('error')
+      if (error.code === "auth/user-not-found") {
+        setError("No account found with this email address.")
+      } else if (error.code === "auth/invalid-email") {
+        setError("Invalid email address.")
+      } else {
+        setError("Failed to send password reset email. Please try again.")
+      }
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const closeResetModal = () => {
+    setShowResetModal(false)
+    setResetStatus(null)
+    setResetEmail("")
+    setError("")
+  }
+
   // Detect if running in Electron
   const isElectron = typeof window !== "undefined" && window.process && window.process.type === "renderer"
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+      {/* Password Reset Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black/50 bg-opacity-10 backdrop-blur-[1px]  flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h3 className="text-xl font-bold mb-4">Reset Password</h3>
+            
+            {resetStatus === 'success' ? (
+              <div className="space-y-4">
+                <p className="text-green-600">
+                  Password reset email sent! Please check your inbox for instructions to reset your password.
+                </p>
+                <button
+                  onClick={closeResetModal}
+                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="mb-4">Enter your email address and we'll send you a link to reset your password.</p>
+                <form onSubmit={handlePasswordReset} className="space-y-4">
+                  <input
+                    type="email"
+                    placeholder="Enter your email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                  {error && <div className="text-red-600 text-sm">{error}</div>}
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      type="button"
+                      onClick={closeResetModal}
+                      disabled={resetLoading}
+                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={resetLoading}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                    >
+                      {resetLoading ? "Sending..." : "Send Reset Link"}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">NexaDew</h1>
@@ -121,7 +222,7 @@ const Login = () => {
           {isElectron && <p className="text-xs text-blue-600 mt-2">Running in Electron mode</p>}
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
+        {error && !showResetModal && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
 
         {/* Google Sign In Button - Only show if not in problematic environment */}
         {!isElectron && (
@@ -204,6 +305,16 @@ const Login = () => {
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
+          </div>
+          
+          <div className="text-right">
+            <button 
+              type="button" 
+              onClick={handleForgotPassword}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+            >
+              Forgot Password?
+            </button>
           </div>
 
           <button
