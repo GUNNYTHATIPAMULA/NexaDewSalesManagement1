@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { doSignInWithEmailAndPassword, doSignInWithGoogle, handleRedirectResult, doPasswordReset } from "../../firebase/auth
+import { doSignInWithEmailAndPassword, doSignInWithGoogle, handleRedirectResult, doPasswordReset } from "../../firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 import { auth, db } from "../../firebase/firebase"
 import { signOut } from "firebase/auth"
