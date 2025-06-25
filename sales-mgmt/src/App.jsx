@@ -79,7 +79,6 @@ const App = () => {
       }
       setLoading(false)
     })
-
     return () => {
       unsubscribe()
       clearLogoutTimer() // Clean up timer on component unmount
@@ -126,7 +125,7 @@ const App = () => {
         <Route path="/sales-manager/register" element={<SalesManagerRegister />} />
         <Route path="/company-owner/register" element={<CompanyOwnerRegister />} />
 
-        {/* Public form route */}
+
         <Route path="/share-form/:uid" element={<PublicForm />} />
 
         <Route
@@ -283,5 +282,5 @@ const App = () => {
     </Router>
   )
 }
-
 export default App
+

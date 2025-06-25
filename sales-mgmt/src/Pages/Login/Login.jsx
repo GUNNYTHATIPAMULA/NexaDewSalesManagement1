@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { doSignInWithEmailAndPassword, doSignInWithGoogle, handleRedirectResult, doPasswordReset } from "../../firebase/auth"
+import { doSignInWithEmailAndPassword, doSignInWithGoogle, handleRedirectResult, doPasswordReset } from "../../firebase/auth
 import { doc, getDoc } from "firebase/firestore"
 import { auth, db } from "../../firebase/firebase"
 import { signOut } from "firebase/auth"
@@ -111,7 +111,6 @@ const Login = () => {
       setGoogleLoading(false)
     }
   }
-
   const handleForgotPassword = () => {
     setResetEmail(email) // Pre-fill with the email they may have entered
     setShowResetModal(true)
@@ -153,7 +152,6 @@ const Login = () => {
     setResetEmail("")
     setError("")
   }
-
   // Detect if running in Electron
   const isElectron = typeof window !== "undefined" && window.process && window.process.type === "renderer"
 
